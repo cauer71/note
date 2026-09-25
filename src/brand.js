@@ -5,6 +5,12 @@ export const APP_NAME = 'Notes';
 export const BRAND = '#5856d6';
 export const SPLASH_BG = '#5856d6';
 
+// „Version 1.2.0 · 25.09.2026 14:32“ – aus der Build-Konfiguration (scripts/build.mjs)
+export function versionText(config = {}) {
+  if (!config.version) return '';
+  return `Version ${config.version}` + (config.built ? ` · ${config.built}` : '');
+}
+
 // Handschrift-Schnörkel auf dem Blatt: Start (142,368), Ende = Stiftspitze (300,354)
 const INK = [
   [142, 368, 156, 338, 172, 338, 176, 360],

@@ -11,7 +11,7 @@ import { setFingerDrawing, fingerDrawing } from './drawing.js';
 import { sanitizeBlocks } from './editor.js';
 import { htmlToText } from './inline.js';
 import { installSection, installCard } from './install.js';
-import { APP_NAME } from './brand.js';
+import { APP_NAME, versionText } from './brand.js';
 
 function largeTitle(title, sub) {
   return h('div', { class: 'large-head' }, h('h1', { class: 'large-title' }, title), sub ? h('div', { class: 'large-sub' }, sub) : null);
@@ -500,7 +500,8 @@ export function openSettings(app) {
       ].map(([a, b]) => h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-title' }, a), h('kbd', {}, navigator.platform.includes('Mac') ? b : b.replace(/⌘/g, 'Strg+').replace(/⇧/g, '⇧')))
       )
     ),
-    h('p', { class: 'settings-foot muted' }, APP_NAME + ' 1.1 · Daten in deiner Cloudflare-D1-Datenbank · KI über Claude')
+    h('p', { class: 'settings-foot muted settings-version' }, [APP_NAME, versionText(app.config)].filter(Boolean).join(' · ')),
+    h('p', { class: 'settings-foot muted' }, 'Daten in deiner Cloudflare-D1-Datenbank · KI über Claude')
   );
   const m = modal(body, { title: 'Einstellungen', class: 'modal-settings' });
 }

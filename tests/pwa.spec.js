@@ -1,6 +1,9 @@
 // Web-App: Startanimation, Manifest, Symbole, Startbilder, Kurzbefehle
 import { test, expect } from '@playwright/test';
 import { openApp, uniq } from './helpers.js';
+import { readFileSync } from 'node:fs';
+
+const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
 test('Startanimation läuft und verschwindet, sobald die App bereit ist', async ({ page }) => {
   await page.goto(`/?local=${uniq('sp')}#heute`, { waitUntil: 'commit' });
@@ -86,4 +89,14 @@ test('App heißt Notes (Logo, Name, Einstellungen)', async ({ page }) => {
   await openApp(page, 'heute');
   await expect(page.locator('.sb-logo svg').first()).toBeAttached();
   await expect(page.locator('.sb-name').first()).toHaveText('Notes');
+});
+
+test('Version steht in der App (Seitenleiste, Einstellungen, HTML)', async ({ page }) => {
+  await openApp(page, 'heute');
+  expect(await page.locator('meta[name="app-version"]').getAttribute('content')).toBe(VERSION);
+  const side = page.locator('.sidebar-version').first();
+  await expect(side).toContainText(`Version ${VERSION}`);
+  await expect(side).toHaveText(/\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/);
+  await page.locator('.sb-foot .nav-row', { hasText: 'Einstellungen' }).first().click();
+  await expect(page.locator('.settings-version')).toContainText(`Notes · Version ${VERSION}`);
 });

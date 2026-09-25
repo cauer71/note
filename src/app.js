@@ -17,7 +17,7 @@ import { Toolbars } from './toolbar.js';
 import { renderToday, renderLearn, renderTrash, openSearch, openSettings, openTemplates, movePagePicker } from './views.js';
 import { collectAllCards, isDue } from './learn.js';
 import { htmlToText } from './inline.js';
-import { APP_NAME, SPLASH_BG, iconSvg } from './brand.js';
+import { APP_NAME, SPLASH_BG, iconSvg, versionText } from './brand.js';
 
 const LOGO = iconSvg({ id: 'logo', rounded: true });
 
@@ -1561,6 +1561,8 @@ export class App {
     const sync = h('div', { class: 'sidebar-sync' });
     this.paintSync(sync, true);
     scroll.appendChild(sync);
+    const version = versionText(this.config);
+    if (version) scroll.appendChild(h('div', { class: 'sidebar-version', title: this.config.builtAt || '' }, `${APP_NAME} · ${version}`));
     wrap.appendChild(scroll);
     return wrap;
   }

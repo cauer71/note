@@ -66,6 +66,10 @@ async function jsBundle() {
   return res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 }
 
+// Version: package.json (bei jeder Veröffentlichung erhöhen) + Build-Zeitpunkt (Ortszeit Südtirol)
+const BUILT = new Date();
+const BUILD_LABEL = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(BUILT).replace(',', '');
+
 const [css, js] = await Promise.all([cssBundle(), jsBundle()]);
 const splashCss = (await transform(SPLASH_CSS, { loader: 'css', minify: true, target: ['safari15', 'chrome100'] })).code;
 const splash = `${splashMarkup()}\n<script>${SPLASH_JS}</script>`;
@@ -75,7 +79,7 @@ const startupLinks = startupImages()
   .join('\n');
 
 const cfg = (target) =>
-  `window.__LERNRAUM__=${JSON.stringify({ target, d1: D1_ID, workspace: target === 'artifact' ? WORKSPACE : '', artifactUrl: ARTIFACT_URL, hostedUrl: HOSTED_URL, version: pkg.version })};`;
+  `window.__LERNRAUM__=${JSON.stringify({ target, d1: D1_ID, workspace: target === 'artifact' ? WORKSPACE : '', artifactUrl: ARTIFACT_URL, hostedUrl: HOSTED_URL, version: pkg.version, built: BUILD_LABEL, builtAt: BUILT.toISOString() })};`;
 
 // --- Gehostete Version ------------------------------------------------------
 const hosted = `<!doctype html>
@@ -91,6 +95,7 @@ const hosted = `<!doctype html>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="${APP_NAME}">
 <meta name="format-detection" content="telephone=no">
+<meta name="app-version" content="${pkg.version}">
 <meta name="description" content="${DESCRIPTION}">
 <link rel="manifest" href="/icons/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -171,3 +176,4 @@ const kb = (s) => (Buffer.byteLength(s) / 1024).toFixed(0) + ' KB';
 console.log(`dist/site/index.html        ${kb(hosted)}`);
 console.log(`dist/artifact/lernraum.html ${kb(artifact)}`);
 console.log(`Artifact-URL: ${ARTIFACT_URL || '(noch keine)'}`);
+console.log(`Version ${pkg.version} · ${BUILD_LABEL}`);

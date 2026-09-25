@@ -46,7 +46,7 @@ async function handleApi(request, env, url, identity, ws) {
   const method = request.method;
 
   if (path === '/api/health' || path === '/api/me') {
-    return json({ ok: true, user: identity.email || identity.id, workspace: ws, legacy: !!env.LEGACY_WORKSPACE && ws === env.LEGACY_WORKSPACE });
+    return json({ ok: true, version: env.APP_VERSION || null, user: identity.email || identity.id, workspace: ws, legacy: !!env.LEGACY_WORKSPACE && ws === env.LEGACY_WORKSPACE });
   }
 
   if (path === '/api/pages' && method === 'GET') {

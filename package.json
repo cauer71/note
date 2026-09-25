@@ -1,6 +1,6 @@
 {
   "name": "lernraum",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Lernraum – ein Notion-Klon für Studierende (Cloudflare Workers + D1, KI über Claude-Artifacts)",
   "type": "module",
@@ -9,7 +9,7 @@
     "dev": "npm run build && wrangler d1 execute notizen --local --file schema.sql && wrangler dev --local --var ACCESS_AUD: --var DEV_NO_AUTH:1",
     "test": "npm run build && playwright test",
     "seed:sql": "node scripts/seed-sql.mjs",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy --var APP_VERSION:$npm_package_version"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
