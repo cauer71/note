@@ -36,14 +36,12 @@ const ACT = (cls) =>
   `<div class="ab tm-actor tf ${cls}"><div class="tf-i"><svg class="tf-arr" viewBox="0 0 16 22"><path d="M1 1v16.5l4.2-4 2.9 6.6 2.7-1.2-2.9-6.4H15z"/></svg></div></div>`;
 const scene = (inner) => `<div class="tm-scene">${inner}</div>`;
 const tile = (c, n) => `<span class="tm-tile tile ${c}">${ic(n)}</span>`;
-const STAR = '<svg viewBox="0 0 24 24"><path d="M12 2c.7 4.6 3.4 7.3 8 8-4.6.7-7.3 3.4-8 8-.7-4.6-3.4-7.3-8-8 4.6-.7 7.3-3.4 8-8z"/></svg>';
 const TITLE_VL = '📈 VL 03 – Folgen und Grenzwerte';
 
 function artWillkommen() {
   const chip = (x, y, dx, dy, i, c, n, label) =>
     `<span class="ab tv-chip" style="left:${x}px;top:${y}px;--dx:${dx}px;--dy:${dy}px;--i:${i}"><span class="tm-chip">${tile(c, n)}${label}</span></span>`;
   return (
-    P('rd tv-halo', 82, 16, 176, 176) +
     P('ov tv-ic', 126, 60, 88, 88, iconSvg({ id: 'tourIc', rounded: true })) +
     chip(14, 28, 44, 25, 0, 'c-indigo', 'pen', 'Notizen') +
     chip(222, 22, -41, 28, 1, 'c-purple', 'highlighter', 'Handschrift') +
@@ -64,7 +62,7 @@ function artSchreiben() {
       P('tm-line', 28, 90, 120) +
       P('z12 c2 tw-sl', 28, 111, 0, 0, '/') +
       P('tw-cw', 28, 112, 0, 0, '<i class="tw-car"></i>') +
-      P('fx z12 nw tw-todo', 28, 111, 0, 0, `<span class="rl tw-cb"><span class="tm-on">${ic('check')}</span></span>${T('Übungsblatt 2 rechnen<i class="tw-st"></i>', 'tw-tx')}`) +
+      P('fx z12 nw tw-todo', 28, 111, 0, 0, `<span class="rl tw-cb"><span class="tm-on">${ic('check')}</span></span>${T('Übungsblatt 2 rechnen', 'tw-tx')}`) +
       P(
         'tm-glass tw-menu',
         44,
@@ -78,10 +76,8 @@ function artSchreiben() {
 }
 
 function artKuerzel() {
-  const sp = '<i class="c3">␣</i>';
   return scene(
     P('tm-window', 12, 10, 316, 212) +
-      P('tm-glass pl c2 tk-key', 226, 18, 90, 24, `<span class="in tk-l1">#${sp}</span><span class="in tk-l2">-${sp}</span><span class="in tk-l3">**…**</span><span class="in tk-l4">[]${sp}</span>`) +
       // pro Zeile erst das Ergebnis, darüber das rohe Kürzel (verschwindet nach dem Leerzeichen)
       P('tk-hd', 28, 22, 0, 0, T('Konvergenz')) +
       P('c2 tk-raw tk-ra', 28, 27, 0, 0, T('# ')) +
@@ -90,11 +86,8 @@ function artKuerzel() {
       P('c2 tk-raw tk-rb', 28, 66, 0, 0, T('- ')) +
       P('rd tk-bul tk-b2', 32, 98, 5, 5) +
       P('nw tk-l', 44, 92, 0, 0, `<span class="tk-pre">Grenzwerte sind </span><span class="rl tk-rel"><span class="tk-rc">${T('<i class="c3">**</i>eindeutig<i class="c3">**</i>')}</span><b class="ab w7 tk-bd">eindeutig</b></span>`) +
-      P('tk-cb', 28, 121, 14, 14) +
-      P('nw tk-l tk-td', 48, 120, 0, 0, T('Skript Kapitel 2 lesen')) +
-      P('c2 tk-raw tk-rd', 28, 120, 0, 0, T('[] ')) +
-      P('tm-line', 28, 160, 210) +
-      P('tm-line', 28, 172, 150)
+      P('tm-line', 28, 126, 210) +
+      P('tm-line', 28, 138, 150)
   );
 }
 
@@ -120,13 +113,16 @@ function artFormeln() {
         312,
         106,
         P('z95 c2', 14, 9, 0, 0, 'Java') +
+          P('fc pl z95 tx-copy', 244, 6, 58, 20, ic('copy') + 'Kopieren') +
           P('tx-code', 14, 28, 0, 0, line(1, `${ty} summe = ${num(0)};`) + line(2, `${kw('for')} (${ty} i = ${num(1)}; i &lt;= n; i++) {`) + line(3, '  summe += i;') + line(4, '}'))
-      )
+      ) +
+      '<div class="ab tm-toast tx-toast" style="top:192px">Code kopiert</div>' +
+      ACT('tx-act')
   );
 }
 
 function artHandschrift() {
-  const tool = (n, cls) => `<span class="fc rl th-t ${cls}">${ic(n)}<span class="tm-on">${ic(n)}</span></span>`;
+  const tool = (n, cls = '') => `<span class="fc th-t${cls}">${ic(n)}</span>`;
   const dot = (col) => `<i class="rd th-dot" style="background:var(--${col})"></i>`;
   return scene(
     P(
@@ -135,7 +131,7 @@ function artHandschrift() {
       10,
       312,
       30,
-      tool('pen', 'th-tp') + tool('highlighter', 'th-th') + tool('eraser', '') + dot('label') + dot('blue') + dot('red') + ic('undo') + ic('hand') + ic('expand') + ic('more')
+      tool('pen', ' th-tp') + tool('highlighter') + tool('eraser') + dot('label') + dot('blue') + dot('red') + ic('undo') + ic('hand') + ic('expand') + ic('more')
     ) +
       P(
         'ov th-paper',
@@ -148,7 +144,7 @@ function artHandschrift() {
           '<svg class="th-g" viewBox="0 0 312 178"><path class="th-lim" d="M34 80H262"/><path class="th-eps" d="M34 64H262M34 96H262"/><text x="22" y="84">a</text><text x="22" y="62">ε</text></svg>' +
           '<i class="in th-rule"></i></div>'
       ) +
-      P('th-palm', 222, 150, 130, 96, '<i class="rd" style="left:30px;top:24px"></i><i class="rd" style="left:56px;top:38px"></i><i class="rd" style="left:38px;top:56px"></i>') +
+      P('th-palm', 222, 150, 130, 96) +
       P('tm-chip th-c1', 164, 200, 0, 0, ic('hand') + 'Handballen ignoriert') +
       P('tm-chip o0 th-c2', 22, 200, 0, 0, ic('hand') + 'Finger scrollt') +
       '<div class="ab th-px"><div class="th-py"><svg class="th-pencil" viewBox="-6 -134 12 134"><rect x="-4.5" y="-134" width="9" height="120" rx="4.5"/><path class="c" d="M-4.5-14h9L1.2-3h-2.4z"/><path class="n" d="M-1.2-3h2.4L0 0z"/></svg></div></div>' +
@@ -160,23 +156,12 @@ function artAufgaben(c) {
   const card = (cls, x, y, title, col, fach) =>
     P('col cd ta-card ' + cls, x, y, 80, 44, `<b class="w6">${title}</b><span class="fx">${col ? `<span class="pill" data-c="${col}">${fach}</span>` : `<span class="pl w6 ta-due">${fach}</span>`}</span>`);
   const col = (x, pill, color, n) => P('ta-col', x, 72, 94, 140, `<div class="fx ta-head"><span class="pill" data-c="${color}">${pill}</span><span class="ov z9 c3 ta-n">${n}</span></div>`);
-  // Kalender ab dem Montag dieser Woche mit echten Tagen
-  const now = new Date();
-  now.setHours(12, 0, 0, 0);
-  const wd = (now.getDay() + 6) % 7;
-  const items = { [wd + 2]: ['blue', 'Blatt 2', 1], [wd + 4]: ['purple', 'Prog 1', 2], [wd + 6]: ['green', 'LinA', 3], [wd + 9]: ['orange', 'ER-Dia', 4] };
-  let cells = '';
-  for (let i = 0; i < 28; i++) {
-    const it = items[i];
-    cells += `<div class="col z85 c2 ta-d${i === wd ? ' now' : ''}"><span class="rd">${new Date(now.getTime() + (i - wd) * 864e5).getDate()}</span>${it ? `<span class="pill ta-p${it[2]}" data-c="${it[0]}">${it[1]}</span>` : ''}</div>`;
-  }
-  const tab = (n, label) => `<span class="fc rl w5 c2 ta-tab">${ic(n)}${label}</span>`;
+  const tab = (label) => `<span class="fc rl w5 c2 ta-tab">${label}</span>`;
   return scene(
     P('tm-window', 10, 8, 320, 216) +
       P('w7 nw ta-h', 22, 18, 0, 0, '✅ Aufgaben &amp; Abgaben') +
-      P('fx ta-tabs', 22, 38, 0, 0, '<i class="ab pl ta-ind"></i>' + tab('table', 'Alle') + tab('board', 'Board') + tab('calendar', 'Kalender')) +
+      P('fx ta-tabs', 22, 38, 0, 0, '<i class="ab pl ta-ind"></i>' + tab('Alle') + tab('Board') + tab('Kalender')) +
       P('ta-sep', 10, 64, 320, 0) +
-      '<div class="in ta-board">' +
       col(22, 'Offen', 'red', '2') +
       col(124, 'In Arbeit', 'yellow', '<span class="ta-cs">2<br>1</span>') +
       col(226, 'Erledigt', 'green', '<span class="ta-cs">1<br>2</span>') +
@@ -186,8 +171,6 @@ function artAufgaben(c) {
       card('ta-c4', 131, 153, 'Vektorräume', 'green', 'LinA') +
       card('ta-c5', 233, 103, 'Mengen &amp; Beweise', 'blue', 'Ana I') +
       card('ta-c3', 131, 103, 'Blatt 2 – Folgen', '', c.dueIn(2)) +
-      '</div>' +
-      P('o0 ta-cal', 22, 72, 296, 140, `<div class="z8 c3 ta-wd">${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((d) => `<span>${d}</span>`).join('')}</div><div class="ta-grid">${cells}</div>`) +
       ACT('ta-act')
   );
 }
@@ -195,15 +178,15 @@ function artAufgaben(c) {
 function artHeute(c) {
   const hour = new Date().getHours();
   const greet = hour < 11 ? 'Guten Morgen' : hour < 17 ? 'Hallo' : 'Guten Abend';
-  const box = (cls, x, col, n, num, label) => P('col cd td-tile ' + cls, x, 56, 98, 64, `<span class="fx td-th">${tile(col, n)}<b class="td-n">${num}</b></span><span class="z85 w6 c2 td-l">${label}</span>`);
+  const box = (x, col, n, num, label) => P('col cd td-tile', x, 56, 98, 64, `<span class="fx td-th">${tile(col, n)}<b class="td-n">${num}</b></span><span class="z85 w6 c2 td-l">${label}</span>`);
   const row = (cls, y, title, sub, due, soon) =>
     `<div class="ab fx td-r ${cls}" style="top:${y}px"><span class="rd rl td-ck"><span class="tm-on rd">${ic('check')}</span></span><span class="col td-m"><b class="el w6">${title}</b><small class="fx nw z85 c2">Aufgaben &amp; Abgaben${sub}</small></span><span class="pl w6 z85 nw td-due${soon ? ' soon' : ''}">${due}</span></div>`;
   return scene(
     P('td-t', 16, 8, 0, 0, 'Heute') +
       P('nw c2', 16, 36, 0, 0, `${greet} · ${fmtDate(todayISO(), 'long')}`) +
-      box('td-t1', 16, 'c-orange', 'cards', '12', 'Fällige Karten') +
-      box('td-t2', 121, 'c-blue', 'checkbox', '<span class="td-win"><span class="td-s2">5<br>4</span></span>', 'Abgaben (14&nbsp;Tage)') +
-      box('td-t3', 226, 'c-purple', 'quiz', '<span class="td-win"><span class="td-s3">132<br>131<br>130</span></span>', 'Tage bis zur nächsten Prüfung') +
+      box(16, 'c-orange', 'cards', '12', 'Fällige Karten') +
+      box(121, 'c-blue', 'checkbox', '5', 'Abgaben (14&nbsp;Tage)') +
+      box(226, 'c-purple', 'quiz', '<span class="td-win"><span class="td-s3">132<br>131<br>130</span></span>', 'Tage bis zur nächsten Prüfung') +
       P('uc z85', 22, 128, 0, 0, 'Anstehend') +
       P(
         'tm-list',
@@ -215,7 +198,6 @@ function artHeute(c) {
           '<div class="in td-rest">' +
           row('', 28, 'Programmieraufgabe: FizzBuzz &amp; Primzahlen', '', c.dueIn(4)) +
           row('', 56, 'Übungsblatt 1 – Vektorräume', '', c.dueIn(6)) +
-          row('', 84, 'ER-Diagramm für die Bibliothek', '', c.dueIn(9)) +
           '</div>'
       ) +
       '<div class="ab tm-toast td-toast" style="top:124px">„Übungsblatt 2 – Folgen“ erledigt</div>' +
@@ -225,10 +207,7 @@ function artHeute(c) {
 
 function artLernen() {
   const rb = (i, color, label, sub) => `<div class="col fc cd tl-rb tl-rb${i}"><b class="w7" style="color:var(--${color})">${label}</b><small class="z85 c2">${sub}</small></div>`;
-  const opt = (l, v, cls) => `<div class="fx rl tl-o${cls}"><i class="fc rd">${l}</i>${v}${cls ? '' : `<span class="in fx tl-ok"><i class="fc rd">${ic('check')}</i>${v}</span>`}</div>`;
   return scene(
-    '<div class="in tl-a">' +
-      P('ov tl-prog', 40, 12, 200, 4, '<i class="in"></i>') +
       P('nw z85 c2', 40, 20, 0, 0, TITLE_VL) +
       P(
         'tl-card',
@@ -240,34 +219,13 @@ function artLernen() {
       ) +
       P('fx tl-rate', 22, 150, 298, 40, rb(1, 'red', 'Nochmal', '&lt; 1 Std.') + rb(2, 'orange', 'Schwer', '1 Tag') + rb(3, 'green', 'Gut', '3 Tage') + rb(4, 'tint', 'Leicht', '9 Tage')) +
       `<div class="ab tm-chip o0 tl-chip" style="top:200px">${ic('clock')}Wieder in 3 Tagen</div>` +
-      '</div><div class="in o0 tl-b">' +
-      P(
-        'cd tl-q',
-        14,
-        14,
-        152,
-        204,
-        `<div class="fx w7 tl-qh">${tile('c-green', 'quiz')}Quiz: Matrizen</div><p class="w6">Welches Format hat AB, wenn A 2×3 und B 3×4 ist?</p>${opt('A', '3×3', ' tl-oa')}${opt('B', '2×4', '')}${opt('C', '4×2', ' tl-oa')}<div class="z9 tl-ex">Zeilen von A × Spalten von B – also 2×4.</div>`
-      ) +
-      P(
-        'cd tl-t',
-        174,
-        14,
-        152,
-        204,
-        '<b class="z11">Fokus-Timer</b>' +
-          '<svg class="ab tl-dial" viewBox="0 0 96 96" style="left:28px;top:46px"><circle cx="48" cy="48" r="42"/><circle class="p" cx="48" cy="48" r="42" transform="rotate(-90 48 48)"/></svg>' +
-          '<div class="ab col tl-clock"><span class="ov tl-win"><span class="tl-ds">25:00<br>24:59<br>24:58<br>24:57</span></span><small class="z85 c2">Fokus · Runde 1</small></div>' +
-          `<div class="ab pl wh w6 z95 tl-go"><span class="in fc tl-g1">${ic('play')}Starten</span><span class="in fc o0 tl-g2">${ic('pause')}Pausieren</span></div>`
-      ) +
-      '</div>' +
       ACT('tl-act')
   );
 }
 
-function artClaude(c) {
+function artClaude() {
   const q = (n, label, cls = '') => `<span class="fx rl ov w6 nw tc-q${cls}">${ic(n)}<span class="el">${label}</span>${cls ? '<i class="tm-on"></i>' : ''}</span>`;
-  const fc = (i, y, a, b) => `<div class="ab col tc-fc tc-fc${i}" style="top:${y}px"><b class="el w6">${a}</b><span class="nw c2">${b}</span><i class="ab o0 tc-bu">${STAR}${STAR}</i></div>`;
+  const fc = (i, y, a, b) => `<div class="ab col tc-fc tc-fc${i}" style="top:${y}px"><b class="el w6">${a}</b><span class="nw c2">${b}</span></div>`;
   return scene(
     P(
       'tm-window ov',
@@ -278,13 +236,11 @@ function artClaude(c) {
       `<div class="ab el w7 tc-t">${TITLE_VL}</div>` +
         P('tm-line', 12, 32, 124) +
         P('tm-line', 12, 44, 104) +
-        P('tm-line', 12, 56, 116) +
-        P('tm-line', 12, 68, 80) +
+        P('tm-line', 12, 56, 80) +
         P('w7 z11 tc-h2', 12, 90, 0, 0, 'Karteikarten') +
         fc(1, 108, 'Wann konvergiert (aₙ)?', '|aₙ − a| &lt; ε ab N') +
         fc(2, 134, 'Sandwich-Lemma?', 'cₙ zwischen aₙ, bₙ → L') +
-        fc(3, 160, 'Ist (−1)ⁿ konvergent?', 'Nein, divergent') +
-        '<i class="in o0 tc-ring"></i>'
+        fc(3, 160, 'Ist (−1)ⁿ konvergent?', 'Nein, divergent')
     ) +
       P(
         'tm-glass tc-panel',
@@ -293,12 +249,10 @@ function artClaude(c) {
         182,
         220,
         `<div class="ab fx w7 z12 tc-head"><span class="fc rd wh tc-logo">${ic('sparkle')}</span>Claude</div>` +
-          '<div class="ab tm-seg z85 tc-seg"><b>Diese Seite</b><span>Alle Notizen</span></div>' +
-          `<div class="ab tc-grid">${q('list', 'Kurzfassung')}${q('cards', 'Karteikarten', ' tc-qk')}${q('quiz', 'Quiz')}${q('info', 'Erklären')}${q('calendar', 'Lernplan')}${q('type', 'Glossar')}</div>` +
+          `<div class="ab tc-grid">${q('list', 'Kurzfassung')}${q('cards', 'Karteikarten', ' tc-qk')}${q('quiz', 'Quiz')}${q('info', 'Erklären')}</div>` +
           '<div class="ab z85 wh tc-ub">Erstelle Karteikarten aus dieser Seite.</div>' +
           `<div class="ab z85 tc-ab"><span class="ab o0 tc-ab1"><i class="rd tc-spin"></i>Karteikarten werden erstellt&nbsp;…</span><span class="tc-ab2">${ic('check')}Fertig – die Karteikarten stehen unten auf der Seite.</span></div>`
       ) +
-      (c.ai ? '' : P('tm-chip tc-na', 14, 202, 0, 0, ic('sparkle') + 'Nur in der Claude-Version')) +
       ACT('tc-act')
   );
 }
@@ -315,27 +269,17 @@ function artFinden(c) {
       216,
       `<div class="ab fx w7 ts-head"><span class="ov ts-logo">${iconSvg({ id: 'tourIc2', rounded: true })}</span>${APP_NAME}</div>` +
         `<div class="ab fx z95 c2 ts-sf">${ic('search')}<span>Suchen</span><kbd class="tm-kbd-only">${c.mod}K</kbd></div>` +
-        P('uc z7', 12, 62, 0, 0, 'Favoriten') +
+        P('uc z8', 12, 62, 0, 0, 'Favoriten') +
         r(72, '👋', 'Willkommen bei Notes', ' ts-fr') +
         r(88, '🎯', 'Prüfungsplan', ' ts-fr') +
-        r(104, '📐', 'Analysis I', ' ts-fr ts-fav') +
         '<div class="ab ts-seiten">' +
-        P('uc z7', 12, 110, 0, 0, 'Seiten') +
+        P('uc z8', 12, 110, 0, 0, 'Seiten') +
         r(120, `<span class="ts-chev">${ic('chevronRight')}</span>🎓`, 'Wintersemester 2026/27', ' ts-fr') +
         r(136, '<i class="ts-al"></i>📐', 'Analysis I', ' ts-fr ts-kid ts-k1') +
         r(152, '💻', 'Programmieren 1 (Java)', ' ts-fr ts-kid ts-k2') +
         '</div>'
     ) +
-      P(
-        'tm-window ts-pg',
-        196,
-        8,
-        134,
-        216,
-        `<div class="ab fx pl tm-glass ts-cap"><span class="fx rl ts-star">${ic('star')}<span class="tm-on">${ic('starFill')}</span></span><span class="fx ts-spk">${ic('sparkle')}</span>${ic('more')}</div>` +
-          '<div class="ab ts-cA"><b class="el w7">👋 Willkommen bei Notes</b><i class="tm-line" style="width:100px"></i><i class="tm-line" style="width:80px"></i></div>' +
-          `<div class="ab ts-cB"><b class="el w7">📐 Analysis I</b><span class="fx ov nw ts-link">${ic('pageText')}<span>VL 03 – Folgen und Grenzwerte</span></span><i class="tm-line" style="width:96px;margin-top:10px"></i><i class="tm-line" style="width:70px;margin-top:6px"></i></div>`
-      ) +
+      P('tm-window', 196, 8, 134, 216, P('in ts-pc', 0, 0, 0, 0, P('el w7 z11', 10, 36, 114, 0, '📐 Analysis I') + P('tm-line', 10, 58, 100) + P('tm-line', 10, 70, 76) + P('tm-line', 10, 82, 90))) +
       P('o0 ts-dim', 10, 8, 320, 216) +
       P(
         'tm-glass o0 ts-sheet',
@@ -344,7 +288,7 @@ function artFinden(c) {
         304,
         100,
         `<div class="ab fx ts-field">${ic('search')}${T('Sandwich')}<span class="ab nw c3 o0 ts-ph">Seiten, Notizen, Aufgaben durchsuchen</span></div><span class="ab ts-cancel">Abbrechen</span>` +
-          P('uc z7 ts-hit', 14, 42, 0, 0, '1 Treffer') +
+          P('uc z8 ts-hit', 14, 42, 0, 0, '1 Treffer') +
           sr(54, '📈', 'VL 03 – Folgen und Grenzwerte', '<small class="c2">… <mark>Sandwich</mark>-Lemma: Gilt aₙ ≤ cₙ ≤ bₙ …</small>')
       ) +
       ACT('ts-act')
@@ -352,12 +296,10 @@ function artFinden(c) {
 }
 
 function artSync() {
-  const sq = (wipe) =>
-    `<span class="rl ov ty-sw"><svg viewBox="0 0 120 30"><path d="M3 21c8-18 16-18 20-2s12 10 18-4 14-10 20 2 12 12 20-2 14-8 20 0 9 6 15 1"/></svg>${wipe ? '<i class="in ty-w"></i>' : ''}</span>`;
   const bars = (a, b, d) => `<i class="tm-line" style="width:${a}%"></i><i class="tm-line" style="width:${b}%"></i><i class="tm-line" style="width:${d}%"></i>`;
   return scene(
-    P('ty-dev ty-pad', 14, 34, 186, 136, `<div class="ab col ov ty-scr"><b class="el w7">📈 VL 03 – Folgen</b>${bars(82, 64, 74)}${sq(true)}<span class="z8 c2 ty-ln">Sandwich-Lemma ✓</span></div>`) +
-      P('ty-dev ty-ph', 262, 62, 64, 134, `<i class="ab ty-isl"></i><div class="ab col ov ty-scr"><b class="el w7">📈 VL 03</b>${bars(90, 70, 80)}${sq(false)}${T('Sandwich-Lemma')}</div>`) +
+    P('ty-dev ty-pad', 14, 34, 186, 136, `<div class="ab col ov ty-scr"><b class="el w7">📈 VL 03 – Folgen</b>${bars(82, 64, 74)}${bars(58, 70, 40)}</div>`) +
+      P('ty-dev ty-ph', 262, 62, 64, 134, `<i class="ab ty-isl"></i><div class="ab col ov ty-scr"><b class="el w7">📈 VL 03</b>${bars(90, 70, 80)}<span class="col ty-cp">${bars(60, 76, 44)}</span>${T('Sandwich-Lemma')}</div>`) +
       P('ty-cl', 206, 16, 44, 44, `<span class="in fc ty-on">${ic('cloud')}</span><span class="in fc o0 c3 ty-off">${ic('cloudOff')}</span>`) +
       `<div class="ab fc o0 wh ty-p">${ic('pageText')}</div>` +
       '<div class="ab ty-s"><span class="tm-chip ty-s1"><i class="rd"></i>Gespeichert</span><span class="tm-chip o0 ty-s2"><i class="rd"></i>Offline – wird später gespeichert</span></div>'
@@ -365,20 +307,11 @@ function artSync() {
 }
 
 function artFertig() {
-  const COL = ['tint', 'pink', 'orange', 'green', 'yellow', 'teal'];
-  let conf = '';
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * Math.PI * 2 + 0.35;
-    const r = 60 + (i % 3) * 25;
-    conf += `<i class="${i % 2 ? 'd' : ''}" style="--x:${Math.round(Math.cos(a) * r)}px;--y:${Math.round(Math.sin(a) * r * 0.6 + 14)}px;--r:${(i * 97) % 360}deg;background:var(--${COL[i % 6]})"></i>`;
-  }
   const row = (n, label, cls = '') => `<div class="fx rl tz-r${cls}">${tile('c-gray', n)}<span>${label}</span></div>`;
   return (
-    P('tz-cf', 170, 54, 0, 0, conf) +
     P('ov tz-ic', 142, 24, 56, 56, iconSvg({ id: 'tourIc3', rounded: true })) +
     P('fc rd wh tz-bd', 186, 64, 20, 20, ic('check')) +
-    P('tm-list tz-list', 70, 102, 200, 98, row('trash', 'Papierkorb') + row('help', 'Hilfe', ' tz-hl') + row('settings', 'Einstellungen')) +
-    P('tm-kbd-only col tz-key', 280, 136, 38, 0, '<span class="fc rl w7 tz-cap">?</span><small class="z8 c2 nw">oder Taste</small>')
+    P('tm-list tz-list', 70, 102, 200, 98, row('trash', 'Papierkorb') + row('help', 'Hilfe', ' tz-hl') + row('settings', 'Einstellungen'))
   );
 }
 
@@ -397,7 +330,6 @@ const K = (sel, a, b, n) => [
   [sel + '::before', `${a - 0.5}:o0;${a},${b}:o1;${b + 0.5}:o0`],
 ];
 const U = (a, b, from, tf = '~s') => `${a}:o0 ${from} ${tf};${b}:o1 n`; // Erscheinen
-const B = (a) => `${a}:o0 s0 r0;${a + 2.5}:o1 s1.1 r22;${a + 5}:o0 s0 r45`; // Funkeln
 const TOAST = (a, b, c, d) => `${a}:o0 ty12;${b},${c}:o1 n;${d}:o0 n`;
 // Finger/Zeiger: Weg, Druck beim Tippen (Skalierung) und Ring
 function actor(sel, path, taps, press) {
@@ -419,16 +351,10 @@ const ANIM = {
     ['.tw-cb .tm-on', F(70, 73)],
     ['.tw-cb .ico', '70:s.4 ~s;73:n'],
     ...K('.tw-tx .tm-cover', 44, 62, 21),
-    ['.tw-st', '72:sx0;78:n'],
     ['.tw-tx', F(72, 78, 1, 0.5)],
     ...actor('.tw-act', '16:X;19:o1;30,38:o1 t160,210;47:o1;50,60:X;63:o1;68,74:o1 t35,119;83:o1;86:X', [32, 70]),
   ],
   kuerzel: [
-    ['.tk-key', F(88, 92, 1, 0)],
-    ['.tk-l1', '2:o0;4,20:o1;22:o0'],
-    ['.tk-l2', '24:o0;26,42:o1;44:o0'],
-    ['.tk-l3', '46:o0;48,64:o1;66:o0'],
-    ['.tk-l4', '68:o0;70,86:o1;88:o0'],
     ['.tk-ra', F(8, 10, 1, 0)],
     ...K('.tk-ra .tm-cover', 2, 6, 2),
     ...K('.tk-hd .tm-cover', 10, 20, 10),
@@ -441,10 +367,6 @@ const ANIM = {
     ['.tk-rc', F(60, 63, 1, 0)],
     ...K('.tk-rc .tm-cover', 46, 58, 13),
     ['.tk-bd', U(60, 63, 'tx8', '')],
-    ['.tk-rd', F(72, 74, 1, 0)],
-    ...K('.tk-rd .tm-cover', 68, 71, 3),
-    ['.tk-cb', U(72, 74, 's0')],
-    ...K('.tk-td .tm-cover', 74, 86, 22),
   ],
   formeln: [
     ['.tx-src', '28:o1 n;32:o0 ty-4'],
@@ -455,6 +377,10 @@ const ANIM = {
     ['.tx-l2', U(42, 45, 'tx-4', '')],
     ['.tx-l3', U(46, 49, 'tx-4', '')],
     ['.tx-l4', U(50, 53, 'tx-4', '')],
+    // Tipp auf „Kopieren“ → Hinweis „Code kopiert“
+    ['.tx-copy', '62,66,100:n;64:s.94'],
+    ['.tx-toast', TOAST(66, 70, 82, 86)],
+    ...actor('.tx-act', '54:X;57:o1;62,66:o1 t288,134;77:o1;80:X', [64]),
   ],
   handschrift: [
     ['.th-px', '2:o0 tx118;10:o1 tx58 ~l;34:tx238;40:tx258;46,48:tx58;52:tx164 ~l;62:o1 tx260;68:o0 tx340'],
@@ -464,33 +390,20 @@ const ANIM = {
     ['.th-palm', '2:o0 t10,14;10,66:o1 n;70:o0 t6,10'],
     ['.th-c1', '12:o0 s.9 ~s;15,62:o1 n;66:o0 n'],
     ['.th-c2', '74:o0 s.9 ~s;77,85:o1 n;88:o0 n'],
-    ['.th-tp .tm-on', F(47, 49, 1, 0)],
-    ['.th-th .tm-on', F(47, 49)],
     ['.th-pc', '72:n ~b;82:ty-30'],
     ['.th-act', '70:o0 t150,206;72:o1 t150,206 ~b;82:o1 t150,160;86:o0 t150,160'],
   ],
   aufgaben: [
-    ['.ta-c3', '20:tx0 s1 r0 ~s;22:tx0 s1.05 r-2;40:tx102 s1.05 r-2 ~s;44:tx102 s1 r0'],
-    ['.ta-c3::before', '20:o0;22,40:o1;44:o0'],
-    ['.ta-c4', '26:n;32:ty-50'],
-    ['.ta-c5', '30:n;36:ty50'],
-    ['.ta-drop', '30:o0;36,42:o1;46:o0'],
-    ['.ta-cs', '42:n ~s;46:ty-11'],
-    ['.ta-ind', '58:n ~s;62:tx68'],
-    ['.ta-board', '60:o1 n;64:o0 s.98'],
-    ['.ta-cal', '60:o0 s.98;64:o1 n'],
-    ['.ta-p1', U(66, 69, 's.8')],
-    ['.ta-p2', U(69, 72, 's.8')],
-    ['.ta-p3', U(72, 75, 's.8')],
-    ['.ta-p4', U(75, 78, 's.8')],
-    // langes Drücken, Ziehen, dann Tipp auf „Kalender“
-    ...actor('.ta-act', '4:X;7:o1;14,22:o1 t170,118;40,46:t272,118;56,60:o1 t190,49;71:o1;74:X', [58], '16,42,56,60,100:n;18,40:s.88;58:s.82'),
+    ['.ta-c3', '32:tx0 s1 r0 ~s;35:tx0 s1.05 r-2;64:tx102 s1.05 r-2 ~s;70:tx102 s1 r0'],
+    ['.ta-c3::before', '32:o0;35,64:o1;70:o0'],
+    ['.ta-c4', '42:n;51:ty-50'],
+    ['.ta-c5', '48:n;58:ty50'],
+    ['.ta-drop', '48:o0;58,67:o1;74:o0'],
+    ['.ta-cs', '67:n ~s;74:ty-11'],
+    // lang drücken, dann ziehen
+    ...actor('.ta-act', '6:X;11:o1;22,35:o1 t170,118;64,70:o1 t272,118;80:o1;86:X', [29], '26,67,100:n;29,64:s.88'),
   ],
   heute: [
-    ['.td-t1', '0:o0 ty6;4:o1 n'],
-    ['.td-t2', '3:o0 ty6;7:o1 n'],
-    ['.td-t3', '6:o0 ty6;10:o1 n'],
-    ['.td-s2', '48:n ~s;52:ty-22'],
     ['.td-s3', '14:n ~s;16,24:ty-22 ~s;26:ty-44'],
     ['.td-r1', '46:o1 n;54:o0 tx-30'],
     ['.td-r1 .tm-on', U(40, 44, 's.6')],
@@ -499,25 +412,14 @@ const ANIM = {
     ...actor('.td-act', '30:X;33:o1;38,44:o1 t31,156;53:o1;56:X', [40]),
   ],
   lernen: [
-    ['.tl-a', F(54, 58, 1, 0)],
-    ['.tl-b', F(58, 62)],
-    ['.tl-prog i', '44:sx.3;48:sx.4'],
-    ['.tl-card', '0:o0 ty8;5,12:o1 n;14:s.97;16,42:o1 n;50:o0 tx-80 r-8'],
-    ['.tl-in', '14:n ~f;24:ry180'],
-    ['.tl-rb1', '24:o0 ty6;27,44:o1 n;48:o0 n'],
-    ['.tl-rb2', '25.5:o0 ty6;28.5,44:o1 n;48:o0 n'],
-    ['.tl-rb3', '27:o0 ty6;30,36:o1 n;38:s.94;40,44:o1 n;48:o0 n'],
-    ['.tl-rb4', '28.5:o0 ty6;31.5,44:o1 n;48:o0 n'],
-    ['.tl-chip', U(40, 43, 's.9')],
-    ['.tl-ok', F(68, 72)],
-    ['.tl-oa', F(68, 72, 1, 0.45)],
-    ['.tl-ex', F(72, 76)],
-    ['.tl-ds', '83.9:n;84,87.9:ty-24;88,91.9:ty-48;92:ty-72'],
-    ['.tl-dial', '84,88,92,100:n;86,90:s1.02'],
-    ['.tl-go', '80,84,100:n;82:s.94'],
-    ['.tl-g1', F(82, 84, 1, 0)],
-    ['.tl-g2', F(82, 84)],
-    ...actor('.tl-act', '6:X;8:o1;12,30:o1 t170,84;36,40:t208,170;48:o1;50,62:X;64:o1;66,74:o1 t90,131;80,84:t250,196;90:o1;92:X', [14, 38, 68, 82]),
+    ['.tl-card', '0:o0 ty8;6,19:o1 n;22:s.97;26,74:o1 n;88:o0 tx-80 r-8'],
+    ['.tl-in', '22:n ~f;38:ry180'],
+    ['.tl-rb1', '38:o0 ty6;43,70:o1 n;77:o0 n'],
+    ['.tl-rb2', '40:o0 ty6;45,70:o1 n;77:o0 n'],
+    ['.tl-rb3', '43:o0 ty6;48,59:o1 n;61:s.94;63,70:o1 n;77:o0 n'],
+    ['.tl-rb4', '45:o0 ty6;50,70:o1 n;77:o0 n'],
+    ['.tl-chip', U(64, 69, 's.9')],
+    ...actor('.tl-act', '10:X;13:o1;19,48:o1 t170,84;58,64:t208,170;77:o1;80:X', [22, 61]),
   ],
   claude: [
     ['.tc-panel', '0:o0 tx24;8:o1 n'],
@@ -527,44 +429,34 @@ const ANIM = {
     ['.tc-ab1', F(56, 60, 1, 0)],
     ['.tc-ab2', F(56, 60)],
     ['.tc-spin', '0:n;100:r360', 'animation-duration:.8s;animation-timing-function:linear'],
-    ['.tc-ring', '32:o0;36,58:o1;62:o0'],
     ['.tc-h2', F(34, 37)],
     ['.tc-fc1', U(38, 41, 'tx-8', '')],
     ['.tc-fc2', U(44, 47, 'tx-8', '')],
     ['.tc-fc3', U(50, 53, 'tx-8', '')],
-    ['.tc-fc1 .tc-bu', B(40)],
-    ['.tc-fc2 .tc-bu', B(46)],
-    ['.tc-fc3 .tc-bu', B(52)],
-    ...actor('.tc-act', '8:X;10:o1;14,18:o1 t282,77;27:o1;30:X', [16]),
+    ...actor('.tc-act', '8:X;10:o1;14,18:o1 t282,57;27:o1;30:X', [16]),
   ],
   finden: [
     ['.ts-chev', '12:n;16:r90'],
     ['.ts-k1', U(14, 17, 'ty-4', '')],
     ['.ts-k2', U(16, 19, 'ty-4', '')],
     ['.ts-al', F(28, 30)],
-    ['.ts-cA', F(28, 32, 1, 0)],
-    ['.ts-cB', F(28, 32)],
-    ['.ts-star .tm-on', U(40, 43, 's1.35')],
-    ['.ts-seiten', '42:n;48:ty18'],
-    ['.ts-fav', U(44, 48, 'ty-4', '')],
-    ['.ts-dim', F(58, 62)],
-    ['.ts-sheet', U(58, 62, 'ty-8')],
-    ['.ts-ph', '62:o1;62.5:o0'],
-    ...K('.ts-field .tm-cover', 62, 72, 8),
-    ['.ts-hit', F(72, 75)],
-    ['.ts-row', U(72, 76, 'ty-4', '')],
-    ...actor('.ts-act', '4:X;6:o1;10,20:o1 t22,136;26,32:t70,152;38,50:t272,26;56,60:o1 t60,48;66:o1;68:X', [12, 28, 40, 58]),
+    ['.ts-pc', F(28, 32)],
+    ['.ts-dim', F(42, 46)],
+    ['.ts-sheet', U(42, 46, 'ty-8')],
+    ['.ts-ph', '46:o1;46.5:o0'],
+    ...K('.ts-field .tm-cover', 48, 60, 8),
+    ['.ts-hit', F(60, 63)],
+    ['.ts-row', U(60, 64, 'ty-4', '')],
+    ...actor('.ts-act', '4:X;6:o1;10,20:o1 t22,136;26,34:o1 t70,152;40,44:o1 t60,48;52:o1;55:X', [12, 28, 42]),
   ],
   sync: [
     ['.ty-dev', '3:o0 ty10;8:o1 n'],
-    ['.ty-pad .ty-w', '8:n ~l;18:E'],
-    ['.ty-ln', F(86, 90)],
-    ['.ty-ph .ty-sw', F(40, 44)],
+    ['.ty-cp', F(40, 44)],
     ...K('.ty-ph .tm-cover', 58, 68, 14),
     ['.ty-cl', '26,30,50,54,74,78,100:n;28:s1.12;52,76:s.95'],
     ['.ty-on', '50:o1;54,74:o0;78:o1'],
     ['.ty-off', '50:o0;54,74:o1;78:o0'],
-    ['.ty-p', '20:o0 t190,60;21:o1;26,30:t228,40;36:o1;38,78:o0 t292,92;79:o1;82:t228,40;85:o1;86:o0 t190,60'],
+    ['.ty-p', '20:o0 t190,60;21:o1;26,30:t228,40;36:o1;38:o0 t292,92'],
     ['.ty-s', U(40, 44, 's.9')],
     ['.ty-s1', '52:o1;56,76:o0;80:o1'],
     ['.ty-s2', '52:o0;56,76:o1;80:o0'],
@@ -617,6 +509,9 @@ function ensureAnimCss() {
   document.head.appendChild(animCss);
 }
 
+// „Beispiel ansehen“: nur wenn die Testnotiz noch da ist (nicht gelöscht, nicht im Papierkorb)
+const example = (c, id, label) => c.has(id) && { label, run: () => c.app.navigate(id) };
+
 // --- Schritte: ein Dienstag im Semester -------------------------------------------------------
 // Texte dürfen <kbd> enthalten (nur eigene Konstanten, daher innerHTML).
 const STEPS = [
@@ -649,7 +544,7 @@ const STEPS = [
   {
     id: 'kuerzel',
     acc: 'blue',
-    loop: 9,
+    loop: 7.5,
     eyebrow: '10:45 · Die Dozentin wird schneller',
     title: 'Formatieren im Tippfluss',
     text: `Kürzel formatieren schon beim Tippen: ${k('# ')} wird zur Überschrift, ${k('- ')} zur Liste, ${k('[] ')} zum To-do und ${k('**fett**')} wird fett. Deine Hände bleiben auf der Tastatur – und dein Kopf bei der Vorlesung.`,
@@ -657,7 +552,7 @@ const STEPS = [
       c.touch
         ? 'Über der Tastatur hast du Fett, Kursiv, Farbe, Formel, Einrücken und Verschieben immer griffbereit.'
         : `Außerdem: ${k('1. ')} Nummern, ${k('> ')} Toggle, ${k('---')} Trennlinie, ${k('*kursiv*')} und ${k('`Code`')}. ${k('Tab')} rückt ein, ${k(c.mod + 'Z')} macht rückgängig.`,
-    action: (c) => c.has('seed-start') && { label: 'Alle Kürzel ansehen', icon: I.arrowUpRight, run: () => c.app.navigate('seed-start') },
+    action: (c) => example(c, 'seed-start', 'Alle Kürzel ansehen'),
     art: artKuerzel,
   },
   {
@@ -668,10 +563,7 @@ const STEPS = [
     title: 'Formeln und Code wie gedruckt',
     text: `Schreib LaTeX zwischen ${k('$…$')} mitten in den Satz oder starte mit ${k('$$ ')} einen Formelblock – ${APP_NAME} setzt die Formel sofort wie im Skript. Drei Backticks ${k('```')} starten einen Codeblock mit Syntaxfarben, etwa für Java, Python oder SQL.`,
     tip: (c) => `${c.touch ? 'Tippe' : 'Klicke'} auf eine Formel, um sie zu bearbeiten. Unter ${k('/')} findest du außerdem Tabellen und ein automatisches Inhaltsverzeichnis.`,
-    action: (c) =>
-      c.has('seed-ana-vl3')
-        ? { label: 'Mathe-Vorlesung ansehen', icon: I.arrowUpRight, run: () => c.app.navigate('seed-ana-vl3') }
-        : c.has('seed-prog-vl2') && { label: 'Java-Beispiel ansehen', icon: I.arrowUpRight, run: () => c.app.navigate('seed-prog-vl2') },
+    action: (c) => example(c, 'seed-ana-vl3', 'Mathe-Vorlesung ansehen') || example(c, 'seed-prog-vl2', 'Java-Beispiel ansehen'),
     art: artFormeln,
   },
   {
@@ -685,13 +577,13 @@ const STEPS = [
       c.touch
         ? 'Kein Stift zur Hand? Tippe in der Werkzeugleiste auf ✋, dann zeichnet auch der Finger, bis du ✋ wieder ausschaltest. Dieselbe Einstellung findest du unter Einstellungen → „Nur Stift zeichnet“.'
         : `Am Computer zeichnest du mit Maus oder Grafiktablett, „Vollbild“ gibt dir die ganze Fläche. Neue Handschrift fügst du mit ${k('/handschrift')} ein.`,
-    action: (c) => c.has('seed-handschrift') && { label: 'Beispiel ansehen', icon: I.arrowUpRight, run: () => c.app.navigate('seed-handschrift') },
+    action: (c) => example(c, 'seed-handschrift', 'Beispiel ansehen'),
     art: artHandschrift,
   },
   {
     id: 'aufgaben',
     acc: 'green',
-    loop: 9.5,
+    loop: 6,
     eyebrow: '12:15 · Neues Übungsblatt',
     title: 'Aufgaben und Abgaben im Griff',
     text: 'In einer Datenbank bekommt jedes Übungsblatt Fach, Status und Fälligkeit. Ist es fertig, ziehst du die Karte im Board nach „Erledigt“ – dieselben Einträge gibt es auch als Tabelle, Kalender, Liste oder Galerie. So verpasst du keine Abgabe.',
@@ -702,7 +594,6 @@ const STEPS = [
     action: (c) =>
       c.has('seed-aufgaben') && {
         label: 'Beispiel ansehen',
-        icon: I.arrowUpRight,
         run: () => {
           // gleich mit der Board-Ansicht öffnen
           const db = c.app.pages.get('seed-aufgaben');
@@ -730,7 +621,7 @@ const STEPS = [
   {
     id: 'lernen',
     acc: 'orange',
-    loop: 10,
+    loop: 6.5,
     eyebrow: '16:00 · Lerngruppe in der Bibliothek',
     title: 'Lernen, das hängen bleibt',
     text: 'Karteikarten kommen genau dann wieder, wenn du sie sonst vergessen würdest: „Gut“ schiebt eine Karte Tage nach hinten, „Nochmal“ holt sie gleich zurück. Das Quiz prüft dich vor der Klausur, der Fokus-Timer hält dich 25 Minuten bei der Sache.',
@@ -759,13 +650,13 @@ const STEPS = [
     action: (c) =>
       c.ai
         ? { label: 'Claude ausprobieren', icon: I.sparkle, run: () => c.app.ai.openPanel({ workspace: true }) }
-        : c.app.config.artifactUrl && { label: 'In Claude öffnen', icon: I.arrowUpRight, href: c.app.config.artifactUrl },
+        : c.app.config.artifactUrl && { label: 'In Claude öffnen', href: c.app.config.artifactUrl },
     art: artClaude,
   },
   {
     id: 'finden',
     acc: 'blue',
-    loop: 10,
+    loop: 8,
     eyebrow: '21:00 · Wo stand das nochmal?',
     title: 'Alles in Sekunden wiederfinden',
     text: 'Ordne Seiten wie Ordner – Semester, Fach, Vorlesung – und zieh sie im Seitenbaum an ihren Platz. Was du oft brauchst, markierst du mit ☆ als Favorit, und die Suche findet jedes Wort in deinen Notizen und Aufgaben.',
@@ -804,7 +695,7 @@ const STEPS = [
       'Diese Anleitung findest du jederzeit unter „Hilfe“ ' +
       (c.narrow ? 'oben in der Notizen-Übersicht' : c.compact ? 'in der Seitenleiste (oben links öffnen)' : 'oben in der Seitenleiste') +
       (c.touch ? ' und in den Einstellungen.' : `, in den Einstellungen oder mit der Taste ${k('?')}.`),
-    action: (c) => c.has('seed-start') && { label: 'Willkommensseite öffnen', icon: I.arrowUpRight, run: () => c.app.navigate('seed-start') },
+    action: (c) => example(c, 'seed-start', 'Willkommensseite öffnen'),
     art: artFertig,
   },
 ];
@@ -923,7 +814,7 @@ export function openTour(app, opts = {}) {
       close('action', { restoreFocus: false });
       if (a.run) a.run();
     };
-    const label = [svg(a.icon), a.label];
+    const label = [svg(a.icon || I.arrowUpRight), a.label];
     return a.href
       ? h('a', { class: 'btn btn-tinted tour-action', href: a.href, target: '_blank', rel: 'noopener', onclick: run }, label)
       : h('button', { class: 'btn btn-tinted tour-action', type: 'button', onclick: run }, label);
@@ -1113,7 +1004,6 @@ export function openTour(app, opts = {}) {
     storageSet(tourSeenKey(app), true);
     window.removeEventListener('keydown', onKey, true);
     document.removeEventListener('visibilitychange', onVis);
-    window.removeEventListener('resize', placeInd);
     ro && ro.disconnect();
     if (appEl) appEl.inert = false;
     root.classList.add('is-closing', 'is-paused');
@@ -1155,7 +1045,6 @@ export function openTour(app, opts = {}) {
     throw err;
   }
   window.addEventListener('keydown', onKey, true);
-  window.addEventListener('resize', placeInd);
   document.addEventListener('visibilitychange', onVis);
   // Fokus in den Dialog (bei Touch ohne Fokusring, bis Tab gedrückt wird – siehe tour.css)
   next.focus({ preventScroll: true });
