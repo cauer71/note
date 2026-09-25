@@ -5110,6 +5110,10 @@ mark {
   pointer-events: none;
   width: min(92vw, 520px);
 }
+/* iPad/Mac mit angedockter Seitenleiste: wie das Banner mittig über der Inhaltsspalte */
+body:not(.is-narrow):not(.is-compact):not(.sidebar-closed) .toasts {
+  left: calc(50% + (var(--sb-w) + 10px) / 2);
+}
 body.is-narrow .toasts,
 body.has-page-toolbar .toasts {
   bottom: calc(env(safe-area-inset-bottom, 0px) + 92px + var(--kb-offset, 0px));
