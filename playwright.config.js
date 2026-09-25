@@ -22,8 +22,8 @@ export default defineConfig({
   },
   projects: [
     { name: 'desktop', use: { ...chromium, viewport: { width: 1280, height: 860 } }, testIgnore: /mobile|api/ },
-    { name: 'iphone', use: { ...devices['iPhone 15 Pro'], ...chromium }, testMatch: /mobile/ },
-    { name: 'ipad', use: { ...devices['iPad Pro 11'], ...chromium }, testMatch: /mobile|drawing/ },
+    { name: 'iphone', use: { ...devices['iPhone 15 Pro'], ...chromium }, testMatch: /mobile|tour\.spec/ },
+    { name: 'ipad', use: { ...devices['iPad Pro 11'], ...chromium }, testMatch: /mobile|drawing|tour\.spec/ },
     { name: 'api', use: { ...chromium, baseURL: `http://localhost:${API_PORT}`, viewport: { width: 1280, height: 860 } }, testMatch: /api/ },
   ],
   webServer: [
