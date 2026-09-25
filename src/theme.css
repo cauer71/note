@@ -1,0 +1,176 @@
+/* Lernraum – Design-Tokens (iOS 26 · Liquid Glass)
+   Der Build dupliziert den DARK-Block für prefers-color-scheme und die Theme-Attribute. */
+:root {
+  color-scheme: light;
+  --tint: #5856d6;
+  --tint-strong: #4a48c4;
+  --tint-soft: rgba(88, 86, 214, 0.12);
+  --tint-text: #4b49c7;
+  --on-tint: #ffffff;
+
+  --bg-page: #ffffff;
+  --bg-canvas: #f2f2f7;
+  --bg-grouped: #f2f2f7;
+  --bg-elev: #ffffff;
+  --bg-elev-2: #f2f2f7;
+  --bg-code: #f6f6f9;
+  --bg-sidebar: rgba(242, 242, 247, 0.72);
+
+  --label: #000000;
+  --label-2: rgba(60, 60, 67, 0.62);
+  --label-3: rgba(60, 60, 67, 0.34);
+  --label-4: rgba(60, 60, 67, 0.2);
+  --sep: rgba(60, 60, 67, 0.2);
+  --sep-strong: rgba(60, 60, 67, 0.32);
+
+  --fill-1: rgba(120, 120, 128, 0.2);
+  --fill-2: rgba(120, 120, 128, 0.16);
+  --fill-3: rgba(118, 118, 128, 0.12);
+  --fill-4: rgba(116, 116, 128, 0.07);
+  --hover: rgba(116, 116, 128, 0.08);
+  --active: rgba(88, 86, 214, 0.1);
+
+  --glass-bg: rgba(255, 255, 255, 0.66);
+  --glass-bg-strong: rgba(250, 250, 252, 0.86);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-edge: rgba(0, 0, 0, 0.06);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -0.5px 0 rgba(255, 255, 255, 0.4);
+  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 55%);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05), 0 4px 14px rgba(0, 0, 0, 0.05);
+  --shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.08);
+
+  --red: #ff3b30;
+  --orange: #ff9500;
+  --yellow: #ffcc00;
+  --green: #34c759;
+  --mint: #00c7be;
+  --teal: #30b0c7;
+  --cyan: #32ade6;
+  --blue: #007aff;
+  --indigo: #5856d6;
+  --purple: #af52de;
+  --pink: #ff2d55;
+  --brown: #a2845e;
+  --gray: #8e8e93;
+
+  /* Textfarben in Blöcken (kontraststark) */
+  --t-gray: #6d6d72;
+  --t-brown: #7f6545;
+  --t-orange: #c93400;
+  --t-yellow: #9a6700;
+  --t-green: #248a3d;
+  --t-blue: #0040dd;
+  --t-purple: #8944ab;
+  --t-pink: #d30f45;
+  --t-red: #d70015;
+  /* Hintergründe in Blöcken */
+  --b-gray: rgba(142, 142, 147, 0.14);
+  --b-brown: rgba(162, 132, 94, 0.16);
+  --b-orange: rgba(255, 149, 0, 0.15);
+  --b-yellow: rgba(255, 204, 0, 0.22);
+  --b-green: rgba(52, 199, 89, 0.15);
+  --b-blue: rgba(0, 122, 255, 0.12);
+  --b-purple: rgba(175, 82, 222, 0.13);
+  --b-pink: rgba(255, 45, 85, 0.12);
+  --b-red: rgba(255, 59, 48, 0.12);
+
+  --paper: #ffffff;
+  --paper-rule: rgba(0, 122, 255, 0.16);
+  --paper-grid: rgba(60, 60, 67, 0.1);
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "New York", ui-serif, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --font-round: ui-rounded, "SF Pro Rounded", -apple-system, system-ui, sans-serif;
+
+  --r-xs: 8px;
+  --r-s: 12px;
+  --r-m: 16px;
+  --r-l: 22px;
+  --r-xl: 28px;
+  --r-sheet: 34px;
+  --sb-w: 300px;
+  --page-w: 720px;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+
+/*DARK*/
+  color-scheme: dark;
+  --tint: #7d7aff;
+  --tint-strong: #9794ff;
+  --tint-soft: rgba(125, 122, 255, 0.2);
+  --tint-text: #a5a3ff;
+  --on-tint: #ffffff;
+
+  --bg-page: #000000;
+  --bg-canvas: #000000;
+  --bg-grouped: #000000;
+  --bg-elev: #1c1c1e;
+  --bg-elev-2: #2c2c2e;
+  --bg-code: #16161a;
+  --bg-sidebar: rgba(28, 28, 30, 0.7);
+
+  --label: #ffffff;
+  --label-2: rgba(235, 235, 245, 0.62);
+  --label-3: rgba(235, 235, 245, 0.34);
+  --label-4: rgba(235, 235, 245, 0.2);
+  --sep: rgba(84, 84, 88, 0.6);
+  --sep-strong: rgba(120, 120, 128, 0.7);
+
+  --fill-1: rgba(120, 120, 128, 0.36);
+  --fill-2: rgba(120, 120, 128, 0.32);
+  --fill-3: rgba(118, 118, 128, 0.24);
+  --fill-4: rgba(118, 118, 128, 0.16);
+  --hover: rgba(255, 255, 255, 0.06);
+  --active: rgba(125, 122, 255, 0.2);
+
+  --glass-bg: rgba(38, 38, 42, 0.58);
+  --glass-bg-strong: rgba(34, 34, 38, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-edge: rgba(255, 255, 255, 0.04);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -0.5px 0 rgba(255, 255, 255, 0.05);
+  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 55%);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  --red: #ff453a;
+  --orange: #ff9f0a;
+  --yellow: #ffd60a;
+  --green: #30d158;
+  --mint: #63e6e2;
+  --teal: #40cbe0;
+  --cyan: #64d2ff;
+  --blue: #0a84ff;
+  --indigo: #5e5ce6;
+  --purple: #bf5af2;
+  --pink: #ff375f;
+  --brown: #ac8e68;
+  --gray: #98989d;
+
+  --t-gray: #aeaeb2;
+  --t-brown: #c8a57c;
+  --t-orange: #ffb340;
+  --t-yellow: #ffd60a;
+  --t-green: #4ade80;
+  --t-blue: #64a8ff;
+  --t-purple: #d69cff;
+  --t-pink: #ff7a9a;
+  --t-red: #ff6961;
+  --b-gray: rgba(142, 142, 147, 0.22);
+  --b-brown: rgba(172, 142, 104, 0.24);
+  --b-orange: rgba(255, 159, 10, 0.22);
+  --b-yellow: rgba(255, 214, 10, 0.2);
+  --b-green: rgba(48, 209, 88, 0.2);
+  --b-blue: rgba(10, 132, 255, 0.24);
+  --b-purple: rgba(191, 90, 242, 0.24);
+  --b-pink: rgba(255, 55, 95, 0.22);
+  --b-red: rgba(255, 69, 58, 0.22);
+
+  --paper: #0d0d0f;
+  --paper-rule: rgba(100, 168, 255, 0.2);
+  --paper-grid: rgba(235, 235, 245, 0.1);
+/*ENDDARK*/
