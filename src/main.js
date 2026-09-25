@@ -70,3 +70,8 @@ if (params.has('local') || config.localOnly) {
 }
 
 app.start(stores);
+
+// Offline-Start für die Home-Bildschirm-App (nur gehostete Version)
+if (config.target === 'hosted' && !inClaude && 'serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}

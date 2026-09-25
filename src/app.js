@@ -761,7 +761,8 @@ export class App {
       );
       wrap.appendChild(cover);
     }
-    const head = h('div', { class: 'page-head' + (p.cover ? ' has-cover' : '') + (p.icon ? ' has-icon' : '') });
+    const isNew = !p.title && !(p.blocks || []).some((b) => b.type !== 'p' || (b.text || '').trim());
+    const head = h('div', { class: 'page-head' + (p.cover ? ' has-cover' : '') + (p.icon ? ' has-icon' : '') + (isNew ? ' is-new' : '') });
     if (p.icon) {
       head.appendChild(h('button', { class: 'page-icon', type: 'button', 'aria-label': 'Symbol ändern', onclick: (e) => this.iconPicker(e.currentTarget, p) }, p.icon));
     }
@@ -950,6 +951,8 @@ export class App {
           ['mono', 'Mono (SF Mono)'],
         ].map(([f, l]) => ({ label: l, checked: (p.font || 'sans') === f, onSelect: () => { p.font = f; this.touch(p); this.route(true); } })),
       },
+      { label: p.icon ? 'Symbol ändern' : 'Symbol hinzufügen', icon: I.star, onSelect: () => this.iconPicker(anchor, p) },
+      { label: p.cover ? 'Titelbild ändern' : 'Titelbild hinzufügen', icon: I.image, onSelect: () => this.coverMenu(anchor, p) },
       isTouchUI() && p.kind !== 'database' ? { label: this.arrange ? 'Anordnen beenden' : 'Blöcke anordnen', icon: I.grip, onSelect: () => this.toggleArrange() } : null,
       { divider: true },
       { label: 'Verschieben nach …', icon: I.move, disabled: p.isRow, onSelect: () => movePagePicker(this, p) },

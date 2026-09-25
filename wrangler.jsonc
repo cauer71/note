@@ -22,7 +22,7 @@
   ],
   "vars": {
     "ACCESS_TEAM_DOMAIN": "snowy-surf-69d3.cloudflareaccess.com",
-    "ACCESS_AUD": ""
+    "ACCESS_AUD": "8ffe59834df89b226c1de1422ea27e0fef20f08da9921e08b04937e103b99679"
   },
   "observability": { "enabled": true }
 }

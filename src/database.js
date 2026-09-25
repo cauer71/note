@@ -376,6 +376,9 @@ export class DbView {
       tbody.appendChild(tr);
     }
     table.append(thead, tbody);
+    // Feste Spaltenbreiten brauchen eine explizite Tabellenbreite
+    const total = (this.schema.titleWidth || 240) + props.reduce((s, p) => s + (p.width || 180), 0) + 44;
+    table.style.width = total + 'px';
     const scroll = h('div', { class: 'dbt-scroll' }, table);
     const foot = h(
       'div',

@@ -2048,7 +2048,10 @@ export function positionFloating(box, rect) {
   if (!rect) return;
   const vw = window.innerWidth;
   const vv = window.visualViewport;
-  const vh = vv ? vv.height + vv.offsetTop : window.innerHeight;
+  let vh = vv ? vv.height + vv.offsetTop : window.innerHeight;
+  // Tastatur-Leiste (iPhone/iPad) nicht verdecken
+  const kb = document.querySelector('.kb-bar:not([hidden])');
+  if (kb) vh = Math.min(vh, kb.getBoundingClientRect().top);
   box.style.maxHeight = '';
   const bh = Math.min(box.scrollHeight, 360);
   const bw = box.offsetWidth || 300;

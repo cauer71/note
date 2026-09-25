@@ -20,9 +20,12 @@ function mockClaude({ mcpFail = false, seedRows = null } = {}) {
         const sql = input.sql; const p = input.params || [];
         const db = load();
         if (/^CREATE TABLE/i.test(sql)) return ok([]);
-        if (/^SELECT id, updated_at/i.test(sql)) {
-          const since = Number(p[0] || 0);
-          return ok(Object.values(db).map((r) => ({ id: r.id, updated_at: r.updated_at, data: r.updated_at > since ? r.data : null })));
+        if (/^SELECT id, updated_at, length\\(data\\) AS size FROM pages$/i.test(sql)) {
+          return ok(Object.values(db).map((r) => ({ id: r.id, updated_at: r.updated_at, size: r.data.length })));
+        }
+        if (/^SELECT id, updated_at, data FROM pages WHERE id IN/i.test(sql)) {
+          window.__calls.batches = (window.__calls.batches || 0) + 1;
+          return ok(p.map((id) => db[id]).filter(Boolean).map((r) => ({ id: r.id, updated_at: r.updated_at, data: r.data })));
         }
         if (/^INSERT INTO pages/i.test(sql)) {
           for (let i = 0; i < p.length; i += 3) db[p[i]] = { id: p[i], data: p[i + 1], updated_at: Number(p[i + 2]) };

@@ -5599,3 +5599,43 @@ body.is-narrow .blk-gutter {
     min-width: 48px;
   }
 }
+
+/* ==========================================================================
+   Feinschliff Runde 2
+   ========================================================================== */
+/* iOS zoomt bei Eingabefeldern unter 16 px – auf Touch-Geräten verhindern */
+body.is-touch input,
+body.is-touch textarea,
+body.is-touch select {
+  font-size: 16px !important;
+}
+body.is-touch .code-edit {
+  font-size: 16px;
+}
+/* Symbol/Titelbild-Knöpfe auf Touch-Geräten nur auf leeren neuen Seiten; sonst im Seitenmenü */
+body.is-touch .page-head-add {
+  display: none;
+}
+body.is-touch .page-head.is-new .page-head-add {
+  display: flex;
+}
+/* Seiten-Leiste auf dem iPad mittig über dem Inhalt, nicht über der Seitenleiste */
+body:not(.is-narrow):not(.sidebar-closed) .page-toolbar {
+  left: calc(var(--sb-w) + 10px);
+}
+body.ai-open:not(.is-narrow) .page-toolbar {
+  right: 440px;
+}
+/* Stift-Leiste auf dem iPhone zweizeilig */
+body.is-narrow .draw-bar {
+  flex-wrap: wrap;
+  border-radius: 24px;
+  justify-content: center;
+  overflow: visible;
+}
+body.is-narrow .draw-group + .draw-group {
+  border-left: 0;
+}
+body.is-narrow .draw-ai {
+  margin-left: 0;
+}

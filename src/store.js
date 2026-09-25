@@ -88,11 +88,27 @@ export class McpD1Store {
     return true;
   }
   async loadAll(since = 0) {
-    const rows = await this.q(
-      'SELECT id, updated_at, CASE WHEN updated_at > ? THEN data END AS data FROM pages',
-      [since]
-    );
-    return rows.map((row) => ({ id: row.id, updatedAt: Number(row.updated_at), data: row.data }));
+    // 1) nur IDs, Zeitstempel und Größe – 2) geänderte Seiten paketweise (Antworten klein halten)
+    const meta = await this.q('SELECT id, updated_at, length(data) AS size FROM pages');
+    const out = new Map(meta.map((r) => [r.id, { id: r.id, updatedAt: Number(r.updated_at), data: null }]));
+    const changed = meta.filter((r) => Number(r.updated_at) > since);
+    let batch = [];
+    let size = 0;
+    const flush = async () => {
+      if (!batch.length) return;
+      const rows = await this.q(`SELECT id, updated_at, data FROM pages WHERE id IN (${batch.map(() => '?').join(', ')})`, batch);
+      for (const r of rows) out.set(r.id, { id: r.id, updatedAt: Number(r.updated_at), data: r.data });
+      batch = [];
+      size = 0;
+    };
+    for (const r of changed) {
+      const n = Number(r.size) || 0;
+      if (batch.length && (size + n > 400000 || batch.length >= 40)) await flush();
+      batch.push(r.id);
+      size += n;
+    }
+    await flush();
+    return [...out.values()];
   }
   async savePages(pages) {
     // Eine Anweisung pro Aufruf; kleine Seiten gebündelt

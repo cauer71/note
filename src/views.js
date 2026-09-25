@@ -436,6 +436,18 @@ export function openSettings(app) {
       h('label', { class: 'ios-row' }, h('span', { class: 'ios-row-main' }, h('span', { class: 'ios-row-title' }, 'Nur Stift zeichnet'), h('span', { class: 'ios-row-sub' }, 'Mit dem Finger scrollen, mit dem Stift schreiben (Palm Rejection).')), penOnly),
       h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-title' }, 'Stift erkannt'), h('span', { class: 'ios-row-value' }, storageGet('lr:penSeen', false) ? 'Ja' : 'Noch nicht'))
     ),
+    !window.claude && !window.matchMedia('(display-mode: standalone)').matches && /iPhone|iPad|Macintosh/.test(navigator.userAgent)
+      ? h(
+          'div',
+          {},
+          h('div', { class: 'section-label' }, 'Als App installieren'),
+          h(
+            'div',
+            { class: 'ios-list' },
+            h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-ico tile c-blue' }, svg(I.upload)), h('span', { class: 'ios-row-main' }, h('span', { class: 'ios-row-title' }, 'Zum Home-Bildschirm'), h('span', { class: 'ios-row-sub', style: { whiteSpace: 'normal' } }, 'In Safari auf „Teilen“ tippen und „Zum Home-Bildschirm“ wählen. Lernraum startet dann im Vollbild wie eine App und funktioniert auch offline.')))
+          )
+        )
+      : null,
     h('div', { class: 'section-label' }, 'Speicher'),
     h(
       'div',
