@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Ports per Umgebung änderbar (z. B. zwei Testläufe parallel in verschiedenen Arbeitskopien)
+const PORT = Number(process.env.PW_PORT || 4173);
+const API_PORT = Number(process.env.PW_API_PORT || 8788);
+
 const chromium = { browserName: 'chromium', launchOptions: { executablePath: process.env.PW_CHROMIUM || undefined } };
 
 export default defineConfig({
@@ -11,7 +15,7 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: `http://localhost:${PORT}`,
     ignoreHTTPSErrors: true,
     trace: 'off',
     screenshot: 'only-on-failure',
@@ -20,13 +24,13 @@ export default defineConfig({
     { name: 'desktop', use: { ...chromium, viewport: { width: 1280, height: 860 } }, testIgnore: /mobile|api/ },
     { name: 'iphone', use: { ...devices['iPhone 15 Pro'], ...chromium }, testMatch: /mobile/ },
     { name: 'ipad', use: { ...devices['iPad Pro 11'], ...chromium }, testMatch: /mobile|drawing/ },
-    { name: 'api', use: { ...chromium, baseURL: 'http://localhost:8788', viewport: { width: 1280, height: 860 } }, testMatch: /api/ },
+    { name: 'api', use: { ...chromium, baseURL: `http://localhost:${API_PORT}`, viewport: { width: 1280, height: 860 } }, testMatch: /api/ },
   ],
   webServer: [
-    { command: 'node scripts/serve.mjs', port: 4173, reuseExistingServer: true },
+    { command: 'node scripts/serve.mjs', port: PORT, env: { PORT: String(PORT) }, reuseExistingServer: true },
     {
-      command: 'rm -rf .wrangler/test-state && npx wrangler d1 execute notizen --local --file schema.sql --persist-to .wrangler/test-state >/dev/null && npx wrangler dev --local --port 8788 --persist-to .wrangler/test-state --var ACCESS_AUD: --var DEV_NO_AUTH:1',
-      port: 8788,
+      command: `rm -rf .wrangler/test-state && npx wrangler d1 execute notizen --local --file schema.sql --persist-to .wrangler/test-state >/dev/null && npx wrangler dev --local --port ${API_PORT} --persist-to .wrangler/test-state --var ACCESS_AUD: --var DEV_NO_AUTH:1`,
+      port: API_PORT,
       reuseExistingServer: true,
       timeout: 120000,
     },
