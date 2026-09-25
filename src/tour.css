@@ -5,7 +5,7 @@
    Die Zeitleisten (Keyframes) der Beispiele erzeugt tour.js aus einer kompakten Tabelle.
    ========================================================================== */
 .tour-sr{position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-.modal.tour{display:flex;flex-direction:column;overflow:hidden;padding:0;width:min(600px,100%);height:min(800px,calc(100vh - 40px));height:min(800px,calc(100dvh - 40px));max-height:none;border-radius:34px;background:var(--bg-grouped);box-shadow:0 0 0 .5px var(--sep),var(--shadow-pop)}
+.modal.tour{display:flex;flex-direction:column;overflow:hidden;padding:0;width:min(600px,100%);height:min(var(--tour-h,700px),calc(100vh - 40px));height:min(var(--tour-h,700px),calc(100dvh - 40px));max-height:none;border-radius:34px;background:var(--bg-grouped);box-shadow:0 0 0 .5px var(--sep),var(--shadow-pop)}
 body.is-narrow .modal.tour{width:100%;height:calc(100% - env(safe-area-inset-top,0px) - 10px);max-height:none;border-radius:var(--r-sheet) var(--r-sheet) 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
 .tour-top{flex:none;height:52px;display:flex;align-items:center;justify-content:space-between;padding:4px 10px 0 22px}
 .tour-count{font-size:13px;font-weight:600;color:var(--label-3);font-variant-numeric:tabular-nums}
@@ -13,6 +13,10 @@ body.is-narrow .modal.tour{width:100%;height:calc(100% - env(safe-area-inset-top
 .tour-track{flex:1 1 auto;min-height:0;display:grid;grid-template:minmax(0,1fr)/minmax(0,1fr);overflow:hidden;touch-action:pan-y}
 .tour-slide{grid-area:1/1;min-width:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
 .tour-slide.is-leaving{pointer-events:none}
+/* Mehr Text unterhalb: unten ausblenden, Linie über dem Fuß */
+.tour-slide.is-more{-webkit-mask-image:linear-gradient(#000 calc(100% - 36px),transparent);mask-image:linear-gradient(#000 calc(100% - 36px),transparent)}
+.tour-foot{border-top:.5px solid transparent;transition:border-color .2s}
+.tour.is-more .tour-foot{border-top-color:var(--sep)}
 /* Übergang: neue Folie kommt aus der Blätterrichtung, alte geht ab (nur „to“ → startet auch aus einer Wischposition) */
 .tour-slide.in-next,.tour-slide.in-prev{animation:t-slide-in .38s var(--ease) both}
 .tour-slide.out-next,.tour-slide.out-prev{animation:t-slide-out .38s var(--ease) both}
@@ -23,7 +27,8 @@ body.is-narrow .modal.tour{width:100%;height:calc(100% - env(safe-area-inset-top
 
 /* Bühne mit Illustration (--acc setzt tour.js je Schritt) */
 .tour-art{position:relative;height:256px;margin:0 16px;overflow:hidden;contain:layout paint;border-radius:28px;box-shadow:inset 0 0 0 .5px var(--sep);background:radial-gradient(130% 100% at 50% 0%,color-mix(in srgb,var(--acc) 18%,transparent),transparent 65%),color-mix(in srgb,var(--acc) 5%,var(--bg-grouped))}
-body.is-narrow .tour-art{height:clamp(196px,32dvh,272px)}
+body.is-narrow .tour-art{height:clamp(160px,28dvh,240px)}
+@media (max-height:700px){body.is-narrow .tour-art{height:clamp(150px,26dvh,180px)}}
 
 .tour-canvas{position:absolute;left:50%;top:50%;width:340px;height:232px;transform:translate(-50%,-50%) scale(var(--s,1));font-size:10.5px;line-height:1.25;color:var(--label);--surf:var(--bg-elev);pointer-events:none;-webkit-user-select:none;user-select:none}
 .tour-canvas i{font-style:normal}
@@ -33,19 +38,19 @@ body.is-narrow .tour-art{height:clamp(196px,32dvh,272px)}
 /* Text */
 .tour-body{padding:18px 24px 16px}
 body.is-narrow .tour-body{padding:16px 20px 16px}
-.tour-eyebrow{margin:0 0 6px;display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:var(--acc-t)}
+.tour-eyebrow{margin:0 0 6px;display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:color-mix(in srgb,var(--acc-t) 80%,var(--label))}
 .tour-eyebrow .ico{width:13px;height:13px}
 .tour-title{margin:0 0 8px;font-family:var(--font-display);font-size:26px;line-height:1.15;font-weight:700;letter-spacing:-.01em}
 body.is-narrow .tour-title{font-size:24px}
-.tour-text{margin:0;font-size:17px;line-height:1.45;color:var(--label-2)}
+.tour-text{margin:0;font-size:17px;line-height:1.45;color:color-mix(in srgb,var(--label) 80%,transparent)}
 body.is-narrow .tour-text{font-size:16px}
 .tour-body kbd{font-family:var(--font-mono);font-size:.85em;white-space:pre;padding:1px 6px}
 .tour-chip{display:inline-flex;align-items:center;gap:7px;height:28px;margin-top:12px;padding:0 12px;border-radius:999px;background:var(--fill-3);font-size:13px;font-weight:600}
 .tour-chip i{width:7px;height:7px;border-radius:50%;background:var(--gray)}
 .tour-chip i.on{background:var(--green)}
-.tour-tip{margin:14px 0 0;display:flex;gap:8px;padding:10px 12px;border-radius:14px;background:var(--fill-4);font-size:14.5px;line-height:1.4;color:var(--label-2)}
+.tour-tip{margin:14px 0 0;display:flex;gap:8px;padding:10px 12px;border-radius:14px;background:var(--fill-4);font-size:14.5px;line-height:1.4;color:color-mix(in srgb,var(--label) 75%,transparent)}
 .tour-tip>.ico{width:16px;height:16px;margin-top:2px;color:var(--acc-t)}
-.tour-action{margin-top:14px;height:auto;min-height:44px;white-space:normal;text-align:left}
+.tour-action{display:flex;width:max-content;max-width:100%;margin-top:14px;height:auto;min-height:44px;white-space:normal;text-align:left}
 .tour-action .ico{width:17px;height:17px}
 .tour-slide.is-entering .tour-body>*{animation:t-copy-in .4s var(--ease) .06s both}
 .tour-slide.is-entering .tour-body>:nth-child(n+3){animation-delay:.14s}
@@ -61,6 +66,7 @@ body.is-narrow .tour-foot{padding:6px 16px 12px}
 .tour-dot-ind{position:absolute;left:0;top:50%;width:20px;height:7px;margin-top:-3.5px;border-radius:4px;background:var(--tint);transform:translateX(var(--x,0));transition:transform .45s var(--spring);pointer-events:none}
 .tour-btns{display:flex;align-items:center;gap:10px}
 .tour-next{margin-left:auto;min-width:150px}
+.tour-backdrop[data-input=touch]:not(.kb) .tour-next:focus-visible{outline:none}
 body.is-narrow .tour-next{flex:1;margin-left:0}
 body.is-narrow .tour.is-first .tour-back{display:none}
 
@@ -99,7 +105,7 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 .tour-canvas .w5{font-weight:500}
 .tour-canvas .w6{font-weight:600}
 .tour-canvas .w7{font-weight:700}
-.tour-canvas .z7{font-size:7.5px}
+.tour-canvas .z7{font-size:8px}
 .tour-canvas .z8{font-size:8px}
 .tour-canvas .z85{font-size:8.5px}
 .tour-canvas .z9{font-size:9px}
@@ -114,7 +120,8 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 
 /* --- Bausteine der Illustrationen --- */
 .tm-window{background:var(--bg-elev);--surf:var(--bg-elev);border-radius:18px;box-shadow:0 0 0 .5px var(--sep),var(--shadow-card)}
-.tm-glass,.tm-toast{background-color:var(--glass-bg-strong);background-image:var(--glass-sheen);border:.5px solid var(--glass-border);box-shadow:var(--glass-hi),var(--shadow-pop)}
+.tm-glass,.tm-toast{background-color:var(--glass-bg-strong);background-image:var(--glass-sheen);border:.5px solid var(--glass-border);box-shadow:var(--glass-hi),0 2px 8px rgba(0,0,0,.1)}
+.tw-menu,.tc-panel,.ts-sheet{box-shadow:var(--glass-hi),0 8px 24px rgba(0,0,0,.14)}
 .tm-line{display:block;height:6px;border-radius:3px;background:var(--fill-3)}
 .tm-chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:999px;background:var(--bg-elev);box-shadow:0 0 0 .5px var(--sep),var(--shadow-card);font-size:10.5px;font-weight:600;white-space:nowrap}
 .tm-chip .ico{width:12px;height:12px}
@@ -128,7 +135,7 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 .tm-seg b{background:var(--bg-elev);color:var(--label);box-shadow:var(--shadow-card)}
 .tm-type{position:relative;display:inline-block;overflow:hidden;padding-right:2px;white-space:pre;vertical-align:top}
 .tm-cover{position:absolute;inset:0;background:var(--surf);transform:translateX(calc(100% + 3px))}
-.tm-cover::before{content:'';position:absolute;left:-2px;top:50%;width:1.5px;height:1.1em;margin-top:-.55em;border-radius:1px;background:var(--tint)}
+.tm-cover::before{content:'';position:absolute;left:-2px;top:50%;width:1.5px;height:1.1em;margin-top:-.55em;border-radius:1px;background:var(--tint);opacity:0}
 .tour-backdrop[data-input=touch] .tm-kbd-only{display:none}
 /* Finger bzw. Mauszeiger, Hotspot in der Mitte */
 .tm-actor{left:0;top:0;width:30px;height:30px;margin:-15px 0 0 -15px;z-index:5;opacity:0;will-change:transform,opacity}
@@ -162,7 +169,6 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 .tw-h{max-width:260px;font:700 15px/1.2 var(--font-display)}
 .tw-e{font-size:18px;vertical-align:-2px}
 .tw-cw,.tw-todo{opacity:0}
-.is-playing .tw-todo{opacity:1}
 .tw-car{display:block;width:1.5px;height:15px;background:var(--tint)}
 .tw-todo{gap:6px}
 .tw-cb,.tk-cb{width:14px;height:14px;border-radius:4px;border:1.5px solid var(--label-3)}
@@ -245,8 +251,8 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 .ta-cs{display:block;transform:translateY(-11px)}
 .ta-card{padding:4px 6px;justify-content:space-between;border-radius:9px}
 .ta-card b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:9px;line-height:12px}
-.ta-card .pill,.ta-d .pill{display:block;min-width:0;height:12px;padding:0 5px;overflow:hidden;text-overflow:ellipsis;font-size:7.5px;line-height:12px}
-.ta-due{padding:0 5px;background:var(--b-orange);color:var(--t-orange);font-size:7.5px;line-height:12px}
+.ta-card .pill,.ta-d .pill{display:block;min-width:0;height:12px;padding:0 5px;overflow:hidden;text-overflow:ellipsis;font-size:8px;line-height:12px}
+.ta-due{padding:0 5px;background:var(--b-orange);color:var(--t-orange);font-size:8px;line-height:12px}
 .ta-c3{z-index:2;transform:translateX(102px)}
 .ta-c3::before{content:'';position:absolute;inset:0;border-radius:9px;box-shadow:0 10px 24px rgba(0,0,0,.18);opacity:0}
 .ta-c4{transform:translateY(-50px)}
@@ -259,7 +265,7 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 .ta-d{align-items:center;gap:2px;padding:2px;border-bottom:.5px solid var(--sep);line-height:13px}
 .ta-d>.rd{width:14px;height:14px;text-align:center;line-height:14px}
 .ta-d.now>.rd{background:var(--tint);color:#fff;font-weight:600}
-.ta-d .pill{width:100%;border-radius:4px;padding:0 3px;font-size:7px}
+.ta-d .pill{width:100%;border-radius:4px;padding:0 3px;font-size:7.5px}
 
 /* --- 7 Heute: Kacheln, Countdown, abhaken --- */
 .td-t{font:800 22px/1.1 var(--font-display)}
@@ -279,8 +285,9 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 .td-ck .ico{width:9px;height:9px}
 .td-m{flex:1;min-width:0;line-height:1.2}
 .td-m small{gap:4px}
-.td-m .pill{height:12px;padding:0 5px;font-size:7.5px}
+.td-m .pill{height:12px;padding:0 5px;font-size:8px}
 .td-due{flex:none;padding:2px 6px;background:var(--fill-3);color:var(--label-2)}
+.td-toast{background:var(--bg-elev)}
 .td-due.soon{background:var(--b-orange);color:var(--t-orange)}
 
 /* --- 8 Lernen: Karte umdrehen, bewerten, Quiz, Timer --- */
@@ -321,7 +328,7 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 /* --- 9 Claude: Karteikarten aus der Seite --- */
 .tc-t{left:12px;top:12px;width:130px}
 .tc-t~.tm-line{height:5px}
-.tc-fc{left:12px;width:124px;height:22px;padding:0 7px;justify-content:center;border-radius:7px;background:var(--fill-4);font-size:7.5px;line-height:9px}
+.tc-fc{left:12px;width:124px;height:22px;padding:0 7px;justify-content:center;border-radius:7px;background:var(--fill-4);font-size:8px;line-height:9px}
 .tc-bu{right:-3px;top:-4px;width:14px;height:10px}
 .tc-bu svg{position:absolute;left:0;top:2px;width:7px;height:7px;fill:var(--tint)}
 .tc-bu svg+svg{left:8px;top:-1px;width:5px;height:5px;fill:var(--pink)}
@@ -332,7 +339,7 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 .tc-logo .ico,.tc-q .ico{width:10px;height:10px}
 .tc-seg{left:12px;top:34px;width:158px;height:20px}
 .tc-grid{left:10px;top:60px;display:grid;grid-template-columns:79px 79px;gap:4px}
-.tc-q{gap:3px;height:22px;padding:0 4px;border-radius:8px;background:var(--fill-4);font-size:7.5px}
+.tc-q{gap:3px;height:22px;padding:0 4px;border-radius:8px;background:var(--fill-4);font-size:8px}
 .tc-q .ico{flex:none;color:var(--tint)}
 .tc-q .tm-on{border-radius:8px;background:var(--tint-soft);box-shadow:inset 0 0 0 1px var(--tint)}
 .tc-ub{right:12px;top:140px;max-width:128px;padding:5px 8px;border-radius:12px 12px 4px 12px;background:var(--tint);line-height:1.3;transform-origin:right bottom}
@@ -367,6 +374,7 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 .ts-cA{opacity:0}
 .ts-cA b,.ts-cB b{display:block;margin-bottom:8px;font-size:11px}
 .ts-cA .tm-line{margin-bottom:6px}
+.ts-link>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .ts-link{gap:4px;height:18px;border-bottom:.5px solid var(--sep);font-size:8.5px}
 .ts-link .ico{width:9px;height:9px;color:var(--label-2)}
 .ts-dim{border-radius:18px;background:color-mix(in srgb,#000 12%,transparent)}
@@ -377,14 +385,14 @@ body.is-narrow .tour-backdrop.is-closing .modal.tour{animation:t-sheet-out .32s 
 .ts-cancel{right:10px;top:10px;font-size:9px;line-height:24px;color:var(--tint-text)}
 .ts-row{left:10px;width:284px;height:26px;gap:6px;padding:0 8px;border-radius:10px;background:var(--bg-elev);font-size:9px}
 .ts-rm{min-width:0;line-height:1.15}
-.ts-rm small{font-size:7.5px;font-weight:400}
+.ts-rm small{font-size:8px;font-weight:400}
 
 /* --- 11 Sync: iPad → Wolke → iPhone, offline weiterschreiben --- */
-.ty-dev{border-radius:16px;background:#1c1c1e;box-shadow:0 0 0 .5px color-mix(in srgb,var(--label) 18%,transparent),var(--shadow-card)}
+.ty-dev{--bz:color-mix(in srgb,var(--label) 30%,#000);border-radius:16px;background:var(--bz);box-shadow:0 0 0 1px var(--sep-strong),var(--shadow-card)}
 .ty-ph{border-radius:14px}
 .ty-scr{inset:5px;gap:5px;padding:8px 10px;border-radius:11px;background:var(--bg-elev)}
 .ty-ph .ty-scr{inset:3px;gap:4px;padding:12px 5px 5px}
-.ty-isl{left:50%;top:6px;z-index:1;width:16px;height:4px;margin-left:-8px;border-radius:2px;background:#1c1c1e}
+.ty-isl{left:50%;top:6px;z-index:1;width:16px;height:4px;margin-left:-8px;border-radius:2px;background:var(--bz)}
 .ty-scr b{font-size:9.5px}
 .ty-ph .ty-scr b,.ty-ph .tm-type{font-size:6px}
 .ty-scr .tm-line{flex:none}

@@ -1377,6 +1377,7 @@ export class App {
       h(
         'div',
         { class: 'sb-head-actions' },
+        h('button', { class: 'glass-btn', type: 'button', 'aria-label': 'Hilfe', title: 'Anleitung (?)', onclick: () => (this.setCompactOpen(false), openTour(this)) }, svg(I.help)),
         h('button', { class: 'glass-btn', type: 'button', 'aria-label': 'Einstellungen', onclick: () => openSettings(this) }, svg(I.settings)),
         h('button', { class: 'glass-btn glass-tint', type: 'button', 'aria-label': 'Neue Seite', onclick: () => this.createPage({}) }, svg(I.pen))
       )

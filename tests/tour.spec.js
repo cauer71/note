@@ -16,6 +16,13 @@ async function gotoTour(page, { tour = true, hash = '' } = {}) {
   await page.waitForFunction(() => window.lernraum && window.lernraum.pages.size > 5);
 }
 
+// Frischer Browser-Kontext mit den Geräteeinstellungen des Projekts (eigener Speicher, eigene IndexedDB)
+async function freshPage(browser, info, base) {
+  const { browserName, launchOptions, trace, screenshot, ...use } = info.project.use;
+  const ctx = await browser.newContext({ ...use, baseURL: base });
+  return ctx.newPage();
+}
+
 const dialog = (page) => page.getByRole('dialog', { name: 'Anleitung' });
 const current = (page) => page.locator('.tour-slide:not(.is-leaving)');
 const seen = (page) => page.evaluate(() => localStorage.getItem('lr:tourSeen:' + window.lernraum.cacheKey));
@@ -36,6 +43,16 @@ test.describe('Anleitung', () => {
     for (let i = 0; i < STEPS.length; i++) {
       await expect(current(page)).toHaveAttribute('data-step', STEPS[i]);
       await expect(dialog(page).locator('.tour-live')).toHaveText(new RegExp(`^Schritt ${i + 1} von ${STEPS.length}: `));
+      // jede Zeitleiste dieses Schritts trifft mindestens ein Element seiner Illustration
+      const dead = await current(page).evaluate((slide) => {
+        const art = slide.querySelector('.tour-art');
+        const pre = `.tour-art[data-step=${art.dataset.step}].is-playing `;
+        return [...document.getElementById('tour-anim').sheet.cssRules]
+          .filter((r) => r.selectorText && r.selectorText.startsWith(pre))
+          .map((r) => r.selectorText.slice(pre.length).replace(/::?(before|after)$/, ''))
+          .filter((sel) => !art.querySelector(sel));
+      });
+      expect(dead).toEqual([]);
       if (i < STEPS.length - 1) await next.click();
     }
     await expect(next).toHaveText(/Los geht/);
@@ -84,6 +101,9 @@ test.describe('Anleitung', () => {
     // Pfeil nach rechts auf dem letzten Schritt schließt nicht
     await page.keyboard.press('ArrowRight');
     await expect(dialog(page)).toBeVisible();
+    // Browser-Kürzel mit Strg/Alt/⌘ bleiben dem Browser
+    await page.keyboard.press('Control+Home');
+    await expect(current(page)).toHaveAttribute('data-step', 'fertig');
     await page.keyboard.press('Home');
     await expect(current(page)).toHaveAttribute('data-step', 'willkommen');
     await expect(dialog(page).locator('.tour-back')).toBeHidden();
@@ -120,9 +140,17 @@ test.describe('Anleitung', () => {
     await swipe(vw * 0.2, y, vw * 0.8, y);
     await expect(current(page)).toHaveAttribute('data-step', 'willkommen');
     await page.waitForTimeout(500);
-    const text = await current(page).locator('.tour-text').boundingBox();
-    await swipe(vw / 2, text.y + text.height - 4, vw / 2 + 10, text.y - 120);
+    // senkrecht ziehen scrollt die (lange) Folie, ohne zu blättern
+    await dialog(page).getByRole('button', { name: /^Schritt 5: / }).click();
+    await expect(current(page)).toHaveAttribute('data-step', 'handschrift');
     await page.waitForTimeout(500);
+    expect(await current(page).evaluate((el) => el.scrollHeight > el.clientHeight && el.classList.contains('is-more'))).toBe(true);
+    const sb = await current(page).boundingBox();
+    await swipe(vw / 2, sb.y + sb.height - 20, vw / 2 + 10, sb.y + sb.height - 220);
+    await page.waitForTimeout(500);
+    await expect(current(page)).toHaveAttribute('data-step', 'handschrift');
+    expect(await current(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    await dialog(page).getByRole('button', { name: /^Schritt 1: / }).click();
     await expect(current(page)).toHaveAttribute('data-step', 'willkommen');
     // Nach links über den ersten Schritt hinaus: federt zurück
     await swipe(vw * 0.2, y, vw * 0.8, y);
@@ -131,12 +159,29 @@ test.describe('Anleitung', () => {
     noErrors(page);
   });
 
-  test('#hilfe öffnet die Anleitung, Zurück öffnet sie nicht erneut', async ({ page }) => {
-    await openApp(page, 'hilfe');
+  test('#hilfe öffnet die Anleitung, Zurück öffnet sie nicht erneut', async ({ page: first, browser }, info) => {
+    let page = first;
+    await openApp(page);
+    await page.evaluate(() => window.lernraum.navigate('seed-inbox'));
+    await page.evaluate(() => (location.hash = 'hilfe'));
     await expect(dialog(page)).toBeVisible();
-    expect(await page.evaluate(() => location.hash)).not.toBe('#hilfe');
+    expect(await page.evaluate(() => location.hash)).toBe('#seed-inbox');
     await page.keyboard.press('Escape');
     await expect(dialog(page)).toBeHidden();
+    // Zurück und wieder vor: die Anleitung kommt nicht noch einmal
+    await page.goBack();
+    await page.waitForTimeout(400);
+    await page.goForward();
+    await page.waitForTimeout(600);
+    expect(await page.evaluate(() => location.hash)).toBe('#seed-inbox');
+    expect(await page.locator('.tour-backdrop').count()).toBe(0);
+    noErrors(page);
+    // direkter Start mit #hilfe (eigener Tab mit eigenem Speicher)
+    const p2 = await freshPage(browser, info, new URL(page.url()).origin);
+    await openApp(p2, 'hilfe');
+    await expect(dialog(p2)).toBeVisible();
+    expect(await p2.evaluate(() => location.hash)).not.toBe('#hilfe');
+    page = p2;
     noErrors(page);
   });
 
@@ -167,6 +212,38 @@ test.describe('Anleitung', () => {
     noErrors(page);
   });
 
+  test('Hilfe-Knopf oben in der Seitenleiste', async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop', 'Seitenleiste am Computer');
+    await openApp(page);
+    await page.locator('.sidebar .sb-head .glass-btn[aria-label="Hilfe"]').click();
+    await expect(dialog(page)).toBeVisible();
+    noErrors(page);
+  });
+
+  test('Erststart: einmal pro Speicher, nicht nach Neuladen, nicht bei #neu', async ({ page, browser }, info) => {
+    // wie ein normaler Browser (ohne Testkennung)
+    await page.addInitScript(() => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false }));
+    const key = uniq('first');
+    await page.goto(`/?local=${key}`);
+    await expect(dialog(page)).toBeVisible({ timeout: 10000 });
+    expect(await page.locator('#splash').count()).toBe(0);
+    await dialog(page).getByRole('button', { name: 'Überspringen' }).click();
+    await expect(dialog(page)).toBeHidden();
+    expect(await seen(page)).toBe('true');
+    await page.reload();
+    await page.waitForFunction(() => window.lernraum && window.lernraum.pages.size > 5 && !document.getElementById('splash'));
+    await page.waitForTimeout(1500);
+    expect(await page.locator('.tour-backdrop').count()).toBe(0);
+    // frischer Browser, Start über den Kurzbefehl #neu: diesmal nicht, und nicht als gesehen gemerkt
+    const p2 = await freshPage(browser, info, new URL(page.url()).origin);
+    await p2.addInitScript(() => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false }));
+    await p2.goto(`/?local=${uniq('neu')}#neu`);
+    await p2.waitForFunction(() => window.lernraum && window.lernraum.pages.size > 5 && !document.getElementById('splash'));
+    await p2.waitForTimeout(1500);
+    expect(await p2.locator('.tour-backdrop').count()).toBe(0);
+    expect(await seen(p2)).toBe(null);
+  });
+
   test('Taste „?“ öffnet die Anleitung, im Editor nicht', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'Tastatur am Computer');
     await openApp(page, 'heute');
@@ -188,14 +265,14 @@ test.describe('Anleitung', () => {
   test('„Beispiel ansehen“ öffnet die Testnotiz, fehlt ohne sie', async ({ page }) => {
     await gotoTour(page);
     await expect(dialog(page)).toBeVisible({ timeout: 10000 });
-    await dialog(page).getByRole('button', { name: 'Schritt 5: Handschrift mit dem Apple Pencil' }).click();
+    await dialog(page).getByRole('button', { name: /^Schritt 5: Handschrift mit dem / }).click();
     await expect(current(page)).toHaveAttribute('data-step', 'handschrift');
     await current(page).locator('.tour-action').click();
     await expect(dialog(page)).toBeHidden();
     expect(await page.evaluate(() => location.hash)).toBe('#seed-handschrift');
     await page.evaluate(() => window.lernraum.trashPage('seed-handschrift'));
     await openTourNow(page);
-    await dialog(page).getByRole('button', { name: 'Schritt 5: Handschrift mit dem Apple Pencil' }).click();
+    await dialog(page).getByRole('button', { name: /^Schritt 5: Handschrift mit dem / }).click();
     await expect(current(page)).toHaveAttribute('data-step', 'handschrift');
     await expect(current(page).locator('.tour-action')).toHaveCount(0);
     // die übrigen Schritte funktionieren weiter

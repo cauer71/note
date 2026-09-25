@@ -5,7 +5,7 @@
 import { h, svg, storageGet, storageSet, isNarrow, relDay, toISODate, fmtDate, todayISO, escapeHtml } from './util.js';
 import { I } from './icons.js';
 import { APP_NAME, iconSvg } from './brand.js';
-import { canInstall, installHint, hasInstallPrompt, promptInstall } from './install.js';
+import { canInstall, installHint, hasInstallPrompt, promptInstall, platform } from './install.js';
 import { openSearch } from './views.js';
 
 // Beim Laden gemerkt: route() ersetzt Kurzbefehle wie #neu sofort durch das Ziel
@@ -68,7 +68,7 @@ function artSchreiben() {
       P(
         'tm-glass tw-menu',
         44,
-        126,
+        120,
         232,
         98,
         `<div class="uc z85 tw-mh">Grundlagen</div><i class="tw-hi"></i>${row('heading1', 'Überschrift 1', 'Große Abschnittsüberschrift', '#')}${row('bullet', 'Aufzählung', 'Einfache Liste mit Punkten', '-')}${row('todo', 'To-do-Liste', 'Aufgaben zum Abhaken', '[]', ' tw-r3')}`
@@ -149,7 +149,7 @@ function artHandschrift() {
           '<i class="in th-rule"></i></div>'
       ) +
       P('th-palm', 222, 150, 130, 96, '<i class="rd" style="left:30px;top:24px"></i><i class="rd" style="left:56px;top:38px"></i><i class="rd" style="left:38px;top:56px"></i>') +
-      P('tm-chip th-c1', 156, 200, 0, 0, ic('hand') + 'Handballen wird ignoriert') +
+      P('tm-chip th-c1', 164, 200, 0, 0, ic('hand') + 'Handballen ignoriert') +
       P('tm-chip o0 th-c2', 22, 200, 0, 0, ic('hand') + 'Finger scrollt') +
       '<div class="ab th-px"><div class="th-py"><svg class="th-pencil" viewBox="-6 -134 12 134"><rect x="-4.5" y="-134" width="9" height="120" rx="4.5"/><path class="c" d="M-4.5-14h9L1.2-3h-2.4z"/><path class="n" d="M-1.2-3h2.4L0 0z"/></svg></div></div>' +
       ACT('th-act fg')
@@ -164,7 +164,7 @@ function artAufgaben(c) {
   const now = new Date();
   now.setHours(12, 0, 0, 0);
   const wd = (now.getDay() + 6) % 7;
-  const items = { [wd + 2]: ['blue', 'Übungsblatt 2', 1], [wd + 4]: ['purple', 'FizzBuzz', 2], [wd + 6]: ['green', 'Vektorräume', 3], [wd + 9]: ['orange', 'ER-Diagramm', 4] };
+  const items = { [wd + 2]: ['blue', 'Blatt 2', 1], [wd + 4]: ['purple', 'Prog 1', 2], [wd + 6]: ['green', 'LinA', 3], [wd + 9]: ['orange', 'ER-Dia', 4] };
   let cells = '';
   for (let i = 0; i < 28; i++) {
     const it = items[i];
@@ -181,11 +181,11 @@ function artAufgaben(c) {
       col(124, 'In Arbeit', 'yellow', '<span class="ta-cs">2<br>1</span>') +
       col(226, 'Erledigt', 'green', '<span class="ta-cs">1<br>2</span>') +
       P('o0 ta-drop', 226, 72, 94, 140) +
-      card('', 29, 103, 'FizzBuzz &amp; Primzahlen', 'purple', 'Programmieren 1') +
-      card('', 29, 153, 'ER-Diagramm', 'orange', 'Datenbanken') +
-      card('ta-c4', 131, 153, 'Übungsblatt 1 – Vektorräume', 'green', 'Lineare Algebra') +
-      card('ta-c5', 233, 103, 'Übungsblatt 1 – Mengen &amp; Beweise', 'blue', 'Analysis I') +
-      card('ta-c3', 131, 103, 'Übungsblatt 2 – Folgen', '', c.dueIn(2)) +
+      card('', 29, 103, 'FizzBuzz &amp; Primzahlen', 'purple', 'Prog 1') +
+      card('', 29, 153, 'ER-Modell', 'orange', 'DB') +
+      card('ta-c4', 131, 153, 'Vektorräume', 'green', 'LinA') +
+      card('ta-c5', 233, 103, 'Mengen &amp; Beweise', 'blue', 'Ana I') +
+      card('ta-c3', 131, 103, 'Blatt 2 – Folgen', '', c.dueIn(2)) +
       '</div>' +
       P('o0 ta-cal', 22, 72, 296, 140, `<div class="z8 c3 ta-wd">${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((d) => `<span>${d}</span>`).join('')}</div><div class="ta-grid">${cells}</div>`) +
       ACT('ta-act')
@@ -202,7 +202,7 @@ function artHeute(c) {
     P('td-t', 16, 8, 0, 0, 'Heute') +
       P('nw c2', 16, 36, 0, 0, `${greet} · ${fmtDate(todayISO(), 'long')}`) +
       box('td-t1', 16, 'c-orange', 'cards', '12', 'Fällige Karten') +
-      box('td-t2', 121, 'c-blue', 'checkbox', '<span class="td-win"><span class="td-s2">5<br>4</span></span>', 'Abgaben (14 Tage)') +
+      box('td-t2', 121, 'c-blue', 'checkbox', '<span class="td-win"><span class="td-s2">5<br>4</span></span>', 'Abgaben (14&nbsp;Tage)') +
       box('td-t3', 226, 'c-purple', 'quiz', '<span class="td-win"><span class="td-s3">132<br>131<br>130</span></span>', 'Tage bis zur nächsten Prüfung') +
       P('uc z85', 22, 128, 0, 0, 'Anstehend') +
       P(
@@ -218,7 +218,7 @@ function artHeute(c) {
           row('', 84, 'ER-Diagramm für die Bibliothek', '', c.dueIn(9)) +
           '</div>'
       ) +
-      '<div class="ab tm-toast td-toast" style="top:196px">„Übungsblatt 2 – Folgen“ erledigt</div>' +
+      '<div class="ab tm-toast td-toast" style="top:124px">„Übungsblatt 2 – Folgen“ erledigt</div>' +
       ACT('td-act')
   );
 }
@@ -294,7 +294,7 @@ function artClaude(c) {
         220,
         `<div class="ab fx w7 z12 tc-head"><span class="fc rd wh tc-logo">${ic('sparkle')}</span>Claude</div>` +
           '<div class="ab tm-seg z85 tc-seg"><b>Diese Seite</b><span>Alle Notizen</span></div>' +
-          `<div class="ab tc-grid">${q('list', 'Zusammenfassen')}${q('cards', 'Karteikarten', ' tc-qk')}${q('quiz', 'Quiz')}${q('info', 'Einfach erklären')}${q('calendar', 'Lernplan')}${q('type', 'Glossar')}</div>` +
+          `<div class="ab tc-grid">${q('list', 'Kurzfassung')}${q('cards', 'Karteikarten', ' tc-qk')}${q('quiz', 'Quiz')}${q('info', 'Erklären')}${q('calendar', 'Lernplan')}${q('type', 'Glossar')}</div>` +
           '<div class="ab z85 wh tc-ub">Erstelle Karteikarten aus dieser Seite.</div>' +
           `<div class="ab z85 tc-ab"><span class="ab o0 tc-ab1"><i class="rd tc-spin"></i>Karteikarten werden erstellt&nbsp;…</span><span class="tc-ab2">${ic('check')}Fertig – die Karteikarten stehen unten auf der Seite.</span></div>`
       ) +
@@ -324,7 +324,6 @@ function artFinden(c) {
         r(120, `<span class="ts-chev">${ic('chevronRight')}</span>🎓`, 'Wintersemester 2026/27', ' ts-fr') +
         r(136, '<i class="ts-al"></i>📐', 'Analysis I', ' ts-fr ts-kid ts-k1') +
         r(152, '💻', 'Programmieren 1 (Java)', ' ts-fr ts-kid ts-k2') +
-        r(168, '📊', 'Statistik', ' ts-fr ts-kid ts-k2') +
         '</div>'
     ) +
       P(
@@ -335,15 +334,15 @@ function artFinden(c) {
         216,
         `<div class="ab fx pl tm-glass ts-cap"><span class="fx rl ts-star">${ic('star')}<span class="tm-on">${ic('starFill')}</span></span><span class="fx ts-spk">${ic('sparkle')}</span>${ic('more')}</div>` +
           '<div class="ab ts-cA"><b class="el w7">👋 Willkommen bei Notes</b><i class="tm-line" style="width:100px"></i><i class="tm-line" style="width:80px"></i></div>' +
-          `<div class="ab ts-cB"><b class="el w7">📐 Analysis I</b><span class="fx ov nw ts-link">${ic('pageText')}VL 03 – Folgen und Grenzwerte</span><i class="tm-line" style="width:96px;margin-top:10px"></i><i class="tm-line" style="width:70px;margin-top:6px"></i></div>`
+          `<div class="ab ts-cB"><b class="el w7">📐 Analysis I</b><span class="fx ov nw ts-link">${ic('pageText')}<span>VL 03 – Folgen und Grenzwerte</span></span><i class="tm-line" style="width:96px;margin-top:10px"></i><i class="tm-line" style="width:70px;margin-top:6px"></i></div>`
       ) +
       P('o0 ts-dim', 10, 8, 320, 216) +
       P(
         'tm-glass o0 ts-sheet',
         18,
-        14,
+        34,
         304,
-        204,
+        100,
         `<div class="ab fx ts-field">${ic('search')}${T('Sandwich')}<span class="ab nw c3 o0 ts-ph">Seiten, Notizen, Aufgaben durchsuchen</span></div><span class="ab ts-cancel">Abbrechen</span>` +
           P('uc z7 ts-hit', 14, 42, 0, 0, '1 Treffer') +
           sr(54, '📈', 'VL 03 – Folgen und Grenzwerte', '<small class="c2">… <mark>Sandwich</mark>-Lemma: Gilt aₙ ≤ cₙ ≤ bₙ …</small>')
@@ -392,7 +391,11 @@ function artFertig() {
 const TF = { s: 'var(--spring)', l: 'linear', b: 'cubic-bezier(.3,0,.2,1)', f: 'cubic-bezier(.34,1.3,.64,1)' };
 const TR = { tx: 'translateX(#px)', ty: 'translateY(#px)', t: 'translate(#px)', s: 'scale(#)', sx: 'scaleX(#)', r: 'rotate(#deg)', ry: 'rotateY(#deg)', k: 'skewX(#deg)' };
 const F = (a, b, x = 0, y = 1) => `${a}:o${x};${b}:o${y}`; // Überblenden
-const K = (a, b, n) => `${a}:n ~${n};${b}:E`; // Tippen mit n Zeichen
+// Tippen mit n Zeichen; die Schreibmarke ist nur währenddessen zu sehen
+const K = (sel, a, b, n) => [
+  [sel, `${a}:n ~${n};${b}:E`],
+  [sel + '::before', `${a - 0.5}:o0;${a},${b}:o1;${b + 0.5}:o0`],
+];
 const U = (a, b, from, tf = '~s') => `${a}:o0 ${from} ${tf};${b}:o1 n`; // Erscheinen
 const B = (a) => `${a}:o0 s0 r0;${a + 2.5}:o1 s1.1 r22;${a + 5}:o0 s0 r45`; // Funkeln
 const TOAST = (a, b, c, d) => `${a}:o0 ty12;${b},${c}:o1 n;${d}:o0 n`;
@@ -407,6 +410,7 @@ const ANIM = {
   schreiben: [
     ['.tw-car', '49:o1;50:o0', 'animation-duration:1s'],
     ['.tw-cw', '8:o1 n;9,38:o1 tx7;42:o0 tx7'],
+    ['.tw-todo', '38:o0;38.5:o1'],
     ['.tw-sl', '8:o0;9,36:o1;40:o0'],
     ['.tw-menu', '10:o0 s.92 ~s;16,36:o1 n;40:o0 s.97'],
     ['.tw-hi', '22:n;28:ty52'],
@@ -414,7 +418,7 @@ const ANIM = {
     ['.tw-cb', '38:o0 s.5 ~s;42,68:o1 n;70:o1 s.88;72:o1 n'],
     ['.tw-cb .tm-on', F(70, 73)],
     ['.tw-cb .ico', '70:s.4 ~s;73:n'],
-    ['.tw-tx .tm-cover', K(44, 62, 21)],
+    ...K('.tw-tx .tm-cover', 44, 62, 21),
     ['.tw-st', '72:sx0;78:n'],
     ['.tw-tx', F(72, 78, 1, 0.5)],
     ...actor('.tw-act', '16:X;19:o1;30,38:o1 t160,210;47:o1;50,60:X;63:o1;68,74:o1 t35,119;83:o1;86:X', [32, 70]),
@@ -426,25 +430,25 @@ const ANIM = {
     ['.tk-l3', '46:o0;48,64:o1;66:o0'],
     ['.tk-l4', '68:o0;70,86:o1;88:o0'],
     ['.tk-ra', F(8, 10, 1, 0)],
-    ['.tk-ra .tm-cover', K(2, 6, 2)],
-    ['.tk-ha .tm-cover', K(10, 20, 10)],
+    ...K('.tk-ra .tm-cover', 2, 6, 2),
+    ...K('.tk-hd .tm-cover', 10, 20, 10),
     ['.tk-rb', F(28, 30, 1, 0)],
-    ['.tk-rb .tm-cover', K(24, 27, 2)],
+    ...K('.tk-rb .tm-cover', 24, 27, 2),
     ['.tk-b1', U(28, 30, 's0')],
-    ['.tk-tb .tm-cover', K(30, 42, 24)],
+    ...K('.tk-tb .tm-cover', 30, 42, 24),
     ['.tk-b2', U(44, 46, 's0')],
     ['.tk-pre', F(44, 46)],
     ['.tk-rc', F(60, 63, 1, 0)],
-    ['.tk-rc .tm-cover', K(46, 58, 13)],
+    ...K('.tk-rc .tm-cover', 46, 58, 13),
     ['.tk-bd', U(60, 63, 'tx8', '')],
     ['.tk-rd', F(72, 74, 1, 0)],
-    ['.tk-rd .tm-cover', K(68, 71, 3)],
+    ...K('.tk-rd .tm-cover', 68, 71, 3),
     ['.tk-cb', U(72, 74, 's0')],
-    ['.tk-td .tm-cover', K(74, 86, 22)],
+    ...K('.tk-td .tm-cover', 74, 86, 22),
   ],
   formeln: [
     ['.tx-src', '28:o1 n;32:o0 ty-4'],
-    ['.tx-src .tm-cover', K(4, 24, 34)],
+    ...K('.tx-src .tm-cover', 4, 24, 34),
     ['.tx-f', U(28, 32, 's.92')],
     ['.tx-sh', '31:o0 tx-60 k-20 ~l;35:o.9;40:o0 tx340 k-20'],
     ['.tx-l1', U(38, 41, 'tx-4', '')],
@@ -546,7 +550,7 @@ const ANIM = {
     ['.ts-dim', F(58, 62)],
     ['.ts-sheet', U(58, 62, 'ty-8')],
     ['.ts-ph', '62:o1;62.5:o0'],
-    ['.ts-field .tm-cover', K(62, 72, 8)],
+    ...K('.ts-field .tm-cover', 62, 72, 8),
     ['.ts-hit', F(72, 75)],
     ['.ts-row', U(72, 76, 'ty-4', '')],
     ...actor('.ts-act', '4:X;6:o1;10,20:o1 t22,136;26,32:t70,152;38,50:t272,26;56,60:o1 t60,48;66:o1;68:X', [12, 28, 40, 58]),
@@ -556,7 +560,7 @@ const ANIM = {
     ['.ty-pad .ty-w', '8:n ~l;18:E'],
     ['.ty-ln', F(86, 90)],
     ['.ty-ph .ty-sw', F(40, 44)],
-    ['.ty-ph .tm-cover', K(58, 68, 14)],
+    ...K('.ty-ph .tm-cover', 58, 68, 14),
     ['.ty-cl', '26,30,50,54,74,78,100:n;28:s1.12;52,76:s.95'],
     ['.ty-on', '50:o1;54,74:o0;78:o1'],
     ['.ty-off', '50:o0;54,74:o1;78:o0'],
@@ -629,7 +633,7 @@ const STEPS = [
     loop: 7.5,
     eyebrow: '10:30 · Vorlesung Analysis',
     title: 'Mitschreiben mit Blöcken',
-    text: `Jede Zeile ist ein Block. Tippe ${k('/')} in eine leere Zeile und wähle, was du gerade brauchst – Überschrift, To-do, Tabelle, Bild, Formel, Handschrift oder Karteikarten. So ist deine Mitschrift schon im Hörsaal gegliedert, und das Abtippen am Abend fällt weg.`,
+    text: `Jede Zeile ist ein Block. Tippe ${k('/')} in eine leere Zeile und wähle, was du brauchst – Überschrift, To-do, Tabelle, Bild, Formel, Handschrift oder Karteikarten. So ist deine Mitschrift schon im Hörsaal gegliedert, Abtippen am Abend fällt weg.`,
     tip: (c) => (c.touch ? 'Auch das ＋ in der Leiste über der Tastatur öffnet alle Blöcke.' : `Tipp nach dem ${k('/')} einfach weiter, z. B. ${k('/todo')}, und übernimm mit ${k('Enter')}. Am Griff ⋮⋮ ziehst du Blöcke an eine neue Stelle.`),
     action: (c) => ({
       label: 'Übungsseite anlegen',
@@ -675,11 +679,11 @@ const STEPS = [
     acc: 'purple',
     loop: 9,
     eyebrow: '11:50 · Skizze von der Tafel',
-    title: 'Handschrift mit dem Apple Pencil',
-    text: 'Graphen, Pfeile und Herleitungen skizzierst du direkt in die Notiz – mit Druckstufen, Textmarker und Radierer auf liniertem, kariertem oder gepunktetem Papier. Deine Hand darf aufliegen: Nur der Stift schreibt, der Finger scrollt, und das Blatt wächst von selbst mit.',
+    title: (c) => (c.ios ? 'Handschrift mit dem Apple Pencil' : 'Handschrift mit dem Stift'),
+    text: 'Graphen und Herleitungen skizzierst du direkt in die Notiz – mit Druckstufen, Textmarker und Radierer auf liniertem, kariertem oder gepunktetem Papier. Deine Hand darf aufliegen: Nur der Stift schreibt, der Finger scrollt, das Blatt wächst mit.',
     tip: (c) =>
       c.touch
-        ? 'Kein Stift zur Hand? Tippe in der Werkzeugleiste auf ✋, dann zeichnet auch der Finger. Dauerhaft stellst du das unter Einstellungen → „Nur Stift zeichnet“ ein.'
+        ? 'Kein Stift zur Hand? Tippe in der Werkzeugleiste auf ✋, dann zeichnet auch der Finger, bis du ✋ wieder ausschaltest. Dieselbe Einstellung findest du unter Einstellungen → „Nur Stift zeichnet“.'
         : `Am Computer zeichnest du mit Maus oder Grafiktablett, „Vollbild“ gibt dir die ganze Fläche. Neue Handschrift fügst du mit ${k('/handschrift')} ein.`,
     action: (c) => c.has('seed-handschrift') && { label: 'Beispiel ansehen', icon: I.arrowUpRight, run: () => c.app.navigate('seed-handschrift') },
     art: artHandschrift,
@@ -690,7 +694,7 @@ const STEPS = [
     loop: 9.5,
     eyebrow: '12:15 · Neues Übungsblatt',
     title: 'Aufgaben und Abgaben im Griff',
-    text: 'In einer Datenbank bekommt jedes Übungsblatt Fach, Status und Fälligkeit. Ist etwas fertig, ziehst du die Karte im Board nach „Erledigt“ – dieselben Einträge siehst du auch als Tabelle, Kalender, Liste oder Galerie. So rutscht dir keine Abgabe mehr durch.',
+    text: 'In einer Datenbank bekommt jedes Übungsblatt Fach, Status und Fälligkeit. Ist es fertig, ziehst du die Karte im Board nach „Erledigt“ – dieselben Einträge gibt es auch als Tabelle, Kalender, Liste oder Galerie. So verpasst du keine Abgabe.',
     tip: (c) =>
       c.touch
         ? 'Karte kurz gedrückt halten, dann ziehen. Filter, Sortierung und Suche gibt es in jeder Ansicht.'
@@ -729,7 +733,7 @@ const STEPS = [
     loop: 10,
     eyebrow: '16:00 · Lerngruppe in der Bibliothek',
     title: 'Lernen, das hängen bleibt',
-    text: 'Karteikarten kommen genau dann wieder, wenn du sie sonst vergessen würdest: „Gut“ schiebt eine Karte ein paar Tage nach hinten, „Nochmal“ holt sie gleich zurück. Im Quiz prüfst du dich vor der Klausur, und der Fokus-Timer hält dich 25 Minuten am Stück bei der Sache.',
+    text: 'Karteikarten kommen genau dann wieder, wenn du sie sonst vergessen würdest: „Gut“ schiebt eine Karte Tage nach hinten, „Nochmal“ holt sie gleich zurück. Das Quiz prüft dich vor der Klausur, der Fokus-Timer hält dich 25 Minuten bei der Sache.',
     tip: (c) =>
       (c.touch ? 'Tippe auf die Karte, um sie umzudrehen.' : `In der Lernrunde dreht die ${k('Leertaste')} die Karte um, ${k('1')}–${k('4')} bewerten sie.`) +
       ` Neue Karten legst du mit ${k('/karteikarten')} an, Testfragen mit ${k('/quiz')}.`,
@@ -742,7 +746,11 @@ const STEPS = [
     loop: 9.5,
     eyebrow: '19:30 · Zu Hause wiederholen',
     title: 'Claude als Lernpartner',
-    text: 'Claude fasst deine Vorlesung zusammen, macht daraus Karteikarten, Quiz oder Prüfungsfragen, erklärt Schwieriges einfacher und plant deinen Lernstoff. Aus Handschrift und Fotos von Tafel oder Folie werden saubere Notizen – und du kannst Fragen an alle deine Notizen stellen.',
+    // Handschrift/Fotos nur erwähnen, wenn diese Claude-Version Bilder verarbeiten darf
+    text: (c) =>
+      'Claude fasst deine Vorlesung zusammen, macht daraus Karteikarten, Quiz oder Prüfungsfragen, erklärt Schwieriges einfacher und plant deinen Lernstoff.' +
+      (!c.ai || c.app.ai.canImages ? ' Aus Handschrift und Tafelfotos werden saubere Notizen.' : '') +
+      ' Und du kannst Fragen an alle deine Notizen stellen.',
     chip: (c) => (c.ai ? { on: true, text: 'In dieser Version verfügbar' } : { on: false, text: `Nur in der Claude-Version von ${APP_NAME}` }),
     tip: (c) =>
       c.ai
@@ -762,7 +770,7 @@ const STEPS = [
     title: 'Alles in Sekunden wiederfinden',
     text: 'Ordne Seiten wie Ordner – Semester, Fach, Vorlesung – und zieh sie im Seitenbaum an ihren Platz. Was du oft brauchst, markierst du mit ☆ als Favorit, und die Suche findet jedes Wort in deinen Notizen und Aufgaben.',
     tip: (c) =>
-      (!c.touch ? `${k(c.mod + 'K')} öffnet die Suche von überall` : c.narrow ? 'Die Lupe neben der Tab-Leiste öffnet die Suche' : 'Die Suche sitzt oben in der Seitenleiste') +
+      (!c.touch ? `${k(c.mod + 'K')} öffnet die Suche von überall` : c.narrow ? 'Die Lupe neben der Tab-Leiste öffnet die Suche' : c.compact ? 'Öffne oben links die Seitenleiste – dort sitzt die Suche' : 'Die Suche sitzt oben in der Seitenleiste') +
       `, ${k('@')} verlinkt Seiten untereinander.`,
     action: (c) => ({ label: 'Suche ausprobieren', icon: I.search, run: () => openSearch(c.app) }),
     art: artFinden,
@@ -791,10 +799,11 @@ const STEPS = [
       c.has('seed-start')
         ? 'Die Testnotizen kannst du behalten, umbauen oder löschen – oder du startest gleich mit einer eigenen Seite oder einer Vorlage wie „Vorlesungsnotiz“ oder „Cornell-Notizen“.'
         : 'Leg jetzt deine erste eigene Seite an – oder starte mit einer Vorlage wie „Vorlesungsnotiz“ oder „Cornell-Notizen“.',
+    // „Hilfe“ gibt es oben (?) und ganz unten in der Seitenleiste bzw. Notizen-Übersicht und in den Einstellungen
     tip: (c) =>
-      !c.touch
-        ? `Diese Anleitung findest du jederzeit unter „Hilfe“ in der Seitenleiste, in den Einstellungen oder mit der Taste ${k('?')}.`
-        : `Diese Anleitung findest du jederzeit unter „Hilfe“ in der ${c.narrow ? 'Notizen-Übersicht' : 'Seitenleiste'} und in den Einstellungen.`,
+      'Diese Anleitung findest du jederzeit unter „Hilfe“ ' +
+      (c.narrow ? 'oben in der Notizen-Übersicht' : c.compact ? 'in der Seitenleiste (oben links öffnen)' : 'oben in der Seitenleiste') +
+      (c.touch ? ' und in den Einstellungen.' : `, in den Einstellungen oder mit der Taste ${k('?')}.`),
     action: (c) => c.has('seed-start') && { label: 'Willkommensseite öffnen', icon: I.arrowUpRight, run: () => c.app.navigate('seed-start') },
     art: artFertig,
   },
@@ -807,9 +816,18 @@ function context(app) {
     touch: b.contains('is-touch'),
     narrow: b.contains('is-narrow') || isNarrow(),
     mod: navigator.platform.includes('Mac') ? '⌘' : 'Strg+',
-    ai: !!(app.ai && app.ai.available),
-    install: canInstall(app),
-    prompt: hasInstallPrompt(),
+    compact: b.contains('is-compact'),
+    ios: platform() === 'ios',
+    // live gelesen: Claude und das Installationsangebot melden sich evtl. erst nach dem Öffnen
+    get ai() {
+      return !!(app.ai && app.ai.available);
+    },
+    get install() {
+      return canInstall(app);
+    },
+    get prompt() {
+      return hasInstallPrompt();
+    },
     localOnly: !!app.store && app.store.kind === 'local',
     // Seite vorhanden und nicht (auch nicht über eine Elternseite) im Papierkorb?
     has: (id) => {
@@ -856,7 +874,7 @@ export function openTour(app, opts = {}) {
   const dots = h(
     'div',
     { class: 'tour-dots', role: 'group', 'aria-label': 'Fortschritt' },
-    STEPS.map((s, i) => h('button', { class: 'tour-dot', type: 'button', 'aria-label': `Schritt ${i + 1}: ${s.title}`, onclick: () => go(i) })),
+    STEPS.map((s, i) => h('button', { class: 'tour-dot', type: 'button', 'aria-label': `Schritt ${i + 1}: ${val(s.title, c)}`, onclick: () => go(i) })),
     ind
   );
   const back = h('button', { class: 'btn btn-plain btn-lg tour-back', type: 'button', onclick: () => go(idx - 1) }, 'Zurück');
@@ -880,6 +898,12 @@ export function openTour(app, opts = {}) {
     const hh = art.clientHeight;
     if (w && hh) art.style.setProperty('--s', Math.min(w / W, hh / H, 1.6).toFixed(3));
   };
+  // Folie länger als sichtbar? → unten ausblenden, damit man sieht, dass sie scrollt
+  const checkMore = () => {
+    const m = !!slide && slide.scrollHeight - slide.clientHeight - slide.scrollTop > 4;
+    slide && slide.classList.toggle('is-more', m);
+    box.classList.toggle('is-more', m);
+  };
   const placeInd = () => {
     const d = dots.children[idx];
     if (d) ind.style.setProperty('--x', d.offsetLeft + d.offsetWidth / 2 - 10 + 'px');
@@ -889,6 +913,7 @@ export function openTour(app, opts = {}) {
       ? new ResizeObserver((entries) => {
           for (const en of entries) if (en.target.classList.contains('tour-art')) fit(en.target);
           placeInd();
+          checkMore();
         })
       : null;
 
@@ -904,22 +929,27 @@ export function openTour(app, opts = {}) {
       : h('button', { class: 'btn btn-tinted tour-action', type: 'button', onclick: run }, label);
   }
 
-  function build(i) {
-    const s = STEPS[i];
-    const tid = 'tour-t-' + s.id;
-    const body = h(
+  // Text eines Schritts; der Aktionsknopf steht vor dem Tipp, damit er auch auf kleinen iPhones sichtbar bleibt
+  function bodyOf(s, tid) {
+    const a = s.action && s.action(c);
+    const chip = s.chip && s.chip(c);
+    const tip = s.tip && s.tip(c);
+    return h(
       'div',
       { class: 'tour-body' },
       h('p', { class: 'tour-eyebrow' }, /^\d/.test(s.eyebrow) ? svg(I.clock) : null, s.eyebrow),
-      h('h3', { class: 'tour-title', id: tid }, s.title),
-      h('p', { class: 'tour-text', html: val(s.text, c) })
+      h('h3', { class: 'tour-title', id: tid }, val(s.title, c)),
+      h('p', { class: 'tour-text', html: val(s.text, c) }),
+      chip && h('div', { class: 'tour-chip' }, h('i', { class: chip.on ? 'on' : null }), chip.text),
+      a ? actionButton(a) : null,
+      tip && h('p', { class: 'tour-tip' }, svg(s.id === 'claude' ? I.sparkle : I.info), h('span', { html: tip }))
     );
-    const chip = s.chip && s.chip(c);
-    if (chip) body.appendChild(h('div', { class: 'tour-chip' }, h('i', { class: chip.on ? 'on' : null }), chip.text));
-    const tip = s.tip && s.tip(c);
-    if (tip) body.appendChild(h('p', { class: 'tour-tip' }, svg(s.id === 'claude' ? I.sparkle : I.info), h('span', { html: tip })));
-    const a = s.action && s.action(c);
-    if (a) body.appendChild(actionButton(a));
+  }
+
+  function build(i) {
+    const s = STEPS[i];
+    const tid = 'tour-t-' + s.id;
+    const body = bodyOf(s, tid);
     const art = h('div', { class: 'tour-art', dataset: { step: s.id }, style: s.loop ? { '--loop': s.loop + 's' } : null, 'aria-hidden': 'true' }, h('div', { class: 'tour-canvas', html: s.art(c) }));
     // Akzentfarbe des Schritts (Bühne, Kopfzeile, Tipp-Symbol)
     const acc = s.acc || 'tint';
@@ -943,6 +973,7 @@ export function openTour(app, opts = {}) {
     slide = neu;
     if (old) neu.classList.add('in-' + dir);
     track.appendChild(neu);
+    neu.addEventListener('scroll', checkMore, { passive: true });
     const art = neu.firstChild;
     fit(art);
     ro && ro.observe(art);
@@ -955,6 +986,7 @@ export function openTour(app, opts = {}) {
       old.setAttribute('aria-hidden', 'true');
     }
     update();
+    checkMore();
     if (!old) return;
     old.inert = true;
     const done = () => {
@@ -976,7 +1008,7 @@ export function openTour(app, opts = {}) {
     box.classList.toggle('is-first', !idx);
     skip.style.visibility = last ? 'hidden' : '';
     next.textContent = last ? 'Los geht’s' : 'Weiter';
-    live.textContent = `Schritt ${idx + 1} von ${N}: ${s.title}`;
+    live.textContent = `Schritt ${idx + 1} von ${N}: ${val(s.title, c)}`;
     placeInd();
     // Fokus war auf der alten Folie oder einem jetzt versteckten Knopf → zurück auf „Weiter“
     const ae = document.activeElement;
@@ -992,12 +1024,17 @@ export function openTour(app, opts = {}) {
     if (e.isComposing) return;
     const key = e.key;
     let handled = true;
+    // Browser-Kürzel (Alt+←, ⌘←, Strg+Pos1 …) nicht abfangen
+    if (e.altKey || e.metaKey || e.ctrlKey) {
+      if (key !== 'Escape' && key !== 'Tab') return e.stopPropagation();
+    }
     if (key === 'ArrowRight' || key === 'PageDown') go(idx + 1);
     else if (key === 'ArrowLeft' || key === 'PageUp') go(idx - 1);
     else if (key === 'Home') go(0);
     else if (key === 'End') go(N - 1);
     else if (key === 'Escape') close('escape');
     else if (key === 'Tab') {
+      root.classList.add('kb');
       const f = focusables();
       const at = f.indexOf(document.activeElement);
       const n = e.shiftKey ? (at <= 0 ? f.length - 1 : at - 1) : at < 0 || at === f.length - 1 ? 0 : at + 1;
@@ -1092,9 +1129,21 @@ export function openTour(app, opts = {}) {
     opts.onClose && opts.onClose(reason);
   }
 
+  // Kartenhöhe (iPad/Computer) nach dem längsten Text aller Schritte, damit Punkte und Knöpfe nicht springen
+  const sizeCard = () => {
+    if (c.narrow) return;
+    const probe = h('div', { class: 'tour-slide', style: { position: 'absolute', visibility: 'hidden', width: track.clientWidth + 'px' } }, STEPS.map((s) => bodyOf(s)));
+    track.appendChild(probe);
+    const tallest = Math.max(...[...probe.children].map((b) => b.offsetHeight));
+    probe.remove();
+    const rest = box.offsetHeight - track.offsetHeight + (slide ? slide.firstChild.offsetHeight : 256) + 2;
+    box.style.setProperty('--tour-h', Math.ceil(rest + tallest) + 'px');
+  };
+
   document.body.appendChild(root);
   try {
     go(want != null && want >= 0 ? want : 0);
+    sizeCard();
     placeInd();
     void ind.offsetWidth;
     ind.style.transition = '';
@@ -1108,8 +1157,8 @@ export function openTour(app, opts = {}) {
   window.addEventListener('keydown', onKey, true);
   window.addEventListener('resize', placeInd);
   document.addEventListener('visibilitychange', onVis);
-  // Fokus in den Dialog; beim automatischen Erststart ohne Fokusring (Tab zeigt ihn wie gewohnt)
-  next.focus(opts.auto ? { preventScroll: true, focusVisible: false } : { preventScroll: true });
+  // Fokus in den Dialog (bei Touch ohne Fokusring, bis Tab gedrückt wird – siehe tour.css)
+  next.focus({ preventScroll: true });
   current = { el: root, close: (reason = 'close') => close(reason), go };
   return current;
 }
