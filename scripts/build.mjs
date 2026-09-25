@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const D1_ID = '7f5ba627-dfd3-4ba6-a7cb-e8afcf315eb1';
-const HOSTED_URL = 'https://lernraum.auer.page';
+const HOSTED_URL = 'https://notes.auer.page';
 const ARTIFACT_URL = process.env.ARTIFACT_URL || readOptional(join(root, 'artifact-url.txt')).trim();
 
 function readOptional(p) {

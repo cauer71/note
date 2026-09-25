@@ -2,7 +2,7 @@
 
 Ein Notion-Klon für Studierende – gebaut für **iPhone und iPad mit Apple Pencil** und gestaltet wie eine native iOS-26-App (Liquid Glass).
 
-- **Gehostet:** https://lernraum.auer.page (Cloudflare Worker + D1, geschützt mit Cloudflare Access)
+- **Gehostet:** https://notes.auer.page (Cloudflare Worker + D1, geschützt mit Cloudflare Access)
 - **Mit KI in Claude:** https://claude.ai/artifact/BeRSov9KCtpwwNt3kwjeLZ (gleiche Daten, KI über Claude)
 
 ## Funktionen
@@ -60,7 +60,7 @@ npm run deploy
 
 Bestehende Datenbanken rüstet der Worker (und die Artifact-Version) beim ersten Zugriff selbst nach (`rev`, `base_rev`).
 
-Cloudflare Access schützt `lernraum.auer.page` (Einmal-PIN per E-Mail, dazu ein Service-Token für Skripte). Nur `/icons/*` ist öffentlich, damit „Zum Home-Bildschirm“ das App-Symbol laden kann. Weitere Personen lassen sich in Zero Trust → Access → Anwendungen → *Lernraum* → Richtlinie *Christian* ergänzen.
+Cloudflare Access schützt `notes.auer.page` (Einmal-PIN per E-Mail, dazu ein Service-Token für Skripte). Nur `/icons/*` ist öffentlich, damit „Zum Home-Bildschirm“ das App-Symbol laden kann. Weitere Personen lassen sich in Zero Trust → Access → Anwendungen → *Lernraum* → Richtlinie *Christian* ergänzen.
 
 ## Synchronisierung
 
@@ -71,4 +71,4 @@ Cloudflare Access schützt `lernraum.auer.page` (Einmal-PIN per E-Mail, dazu ein
 
 ## Auf dem iPhone/iPad installieren
 
-In Safari `lernraum.auer.page` öffnen → Teilen → **Zum Home-Bildschirm**. Die App startet dann im Vollbild und öffnet sich auch offline mit dem zuletzt geladenen Stand.
+In Safari `notes.auer.page` öffnen → Teilen → **Zum Home-Bildschirm**. Die App startet dann im Vollbild und öffnet sich auch offline mit dem zuletzt geladenen Stand.
