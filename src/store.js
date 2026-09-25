@@ -40,17 +40,34 @@ export class ApiStore {
     const j = await r.json();
     return j.pages.map((row) => ({ id: row.id, updatedAt: Number(row.updated_at), rev: Number(row.rev) || 0, data: row.data }));
   }
-  async savePages(pages) {
-    for (const part of chunks(pages, 40)) {
-      const body = JSON.stringify({
-        pages: part.map((p) => ({ id: p.id, data: JSON.stringify(p), updated_at: p.updatedAt })),
-      });
+  // items: [{id, data (JSON-Text), updatedAt, baseRev}] → {saved: {id: rev}, rejected, tooLarge}
+  async savePages(items) {
+    const saved = {};
+    const rejected = [];
+    const tooLarge = [];
+    // höchstens 40 Seiten bzw. ~6 MB pro Anfrage (Worker-Speicher, D1-Grenzen)
+    const parts = [];
+    let cur = [];
+    let bytes = 0;
+    for (const it of items) {
+      const n = pageBytes(it.data);
+      if (cur.length && (cur.length >= 40 || bytes + n > 6_000_000)) {
+        parts.push(cur);
+        cur = [];
+        bytes = 0;
+      }
+      cur.push(it);
+      bytes += n;
+    }
+    if (cur.length) parts.push(cur);
+    for (const part of parts) {
+      const body = JSON.stringify({ pages: part.map((p) => ({ id: p.id, data: p.data, updated_at: p.updatedAt, base_rev: p.baseRev || 0 })) });
       const r = await fetch('/api/pages', {
         method: 'PUT',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
         body,
-        keepalive: body.length < 60000,
+        keepalive: encoder.encode(body).length < 60000,
       });
       if (!r.ok) {
         let msg = 'Speichern fehlgeschlagen (' + r.status + ')';
@@ -61,7 +78,22 @@ export class ApiStore {
         }
         throw Object.assign(new Error(msg), { code: r.status === 401 ? 'auth' : 'net' });
       }
+      const j = await r.json().catch(() => ({}));
+      Object.assign(saved, j.saved || {});
+      rejected.push(...(j.rejected || []));
+      tooLarge.push(...(j.tooLarge || []));
     }
+    return { saved, rejected, tooLarge };
+  }
+  async fetchPages(ids) {
+    const out = [];
+    for (const part of chunks(ids, 90)) {
+      const r = await fetch('/api/pages?ids=' + part.map(encodeURIComponent).join(','), { credentials: 'same-origin', cache: 'no-store' });
+      if (!r.ok) throw new Error('Laden fehlgeschlagen (' + r.status + ')');
+      const j = await r.json();
+      out.push(...j.pages.map((row) => ({ id: row.id, updatedAt: Number(row.updated_at), rev: Number(row.rev) || 0, data: row.data })));
+    }
+    return out;
   }
   async deletePages(ids) {
     for (const part of chunks(ids, 90)) {
@@ -76,8 +108,9 @@ export class ApiStore {
   }
 }
 
-// Revision direkt in D1 aus der Serverzeit berechnen (Millisekunden)
-const SQL_REV = "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
+// Revision fortlaufend in D1 vergeben; Serverzeit (ms) zum Kappen vorgehender Geräteuhren
+const SQL_REV = '(SELECT COALESCE(MAX(rev), 0) + 1 FROM pages)';
+const SQL_NOW = "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
 
 export class McpD1Store {
   constructor(mcp, databaseId) {
@@ -100,17 +133,23 @@ export class McpD1Store {
     }
     const first = Array.isArray(p) ? p[0] : p && Array.isArray(p.result) ? p.result[0] : p;
     if (first && first.success === false) throw new Error((first.errors && JSON.stringify(first.errors)) || 'D1-Fehler');
+    this.lastMeta = (first && first.meta) || {};
     return (first && first.results) || [];
   }
   async init() {
-    await this.q('CREATE TABLE IF NOT EXISTS pages (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL, rev INTEGER NOT NULL DEFAULT 0)');
+    await this.q('CREATE TABLE IF NOT EXISTS pages (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL, rev INTEGER NOT NULL DEFAULT 0, base_rev INTEGER NOT NULL DEFAULT 0)');
+    // ältere Datenbanken nachrüsten
+    const cols = new Set((await this.q('PRAGMA table_info(pages)')).map((c) => c.name));
+    if (!cols.has('rev')) await this.q('ALTER TABLE pages ADD COLUMN rev INTEGER NOT NULL DEFAULT 0');
+    if (!cols.has('base_rev')) await this.q('ALTER TABLE pages ADD COLUMN base_rev INTEGER NOT NULL DEFAULT 0');
+    if (!cols.has('rev')) await this.q('CREATE INDEX IF NOT EXISTS idx_pages_rev ON pages(rev)');
     return true;
   }
   async loadAll(since = 0) {
     // 1) nur IDs, Revisionen und Größe – 2) geänderte Seiten paketweise (Antworten klein halten)
     const meta = await this.q('SELECT id, updated_at, rev, length(data) AS size FROM pages');
     const out = new Map(meta.map((r) => [r.id, { id: r.id, updatedAt: Number(r.updated_at), rev: Number(r.rev) || 0, data: null }]));
-    const changed = meta.filter((r) => (Number(r.rev) || 0) >= since);
+    const changed = meta.filter((r) => (Number(r.rev) || 0) > since);
     let batch = [];
     let size = 0;
     const flush = async () => {
@@ -129,31 +168,44 @@ export class McpD1Store {
     await flush();
     return [...out.values()];
   }
-  async savePages(pages) {
-    // Eine Anweisung pro Aufruf; mehrere kleine Seiten gebündelt (max. 90 Parameter)
+  // items: [{id, data, updatedAt, baseRev}] → {saved: {id: rev}, rejected, tooLarge}
+  async savePages(items) {
+    const saved = {};
+    const rejected = [];
     const batches = [];
     let cur = [];
     let size = 0;
-    for (const p of pages) {
-      const data = JSON.stringify(p);
-      if (cur.length && (size + data.length > 600000 || cur.length >= 30)) {
+    for (const it of items) {
+      if (cur.length && (size + it.data.length > 600000 || cur.length >= 20)) {
         batches.push(cur);
         cur = [];
         size = 0;
       }
-      cur.push({ id: p.id, data, ts: p.updatedAt });
-      size += data.length;
+      cur.push(it);
+      size += it.data.length;
     }
     if (cur.length) batches.push(cur);
     for (const b of batches) {
-      const values = b.map(() => `(?, ?, ?, ${SQL_REV})`).join(', ');
+      // Optimistische Sperre wie im Worker: nur schreiben, wenn rev noch der Basis entspricht
+      const values = b.map(() => `(?, ?, MIN(CAST(? AS INTEGER), ${SQL_NOW} + 60000), ${SQL_REV}, CAST(? AS INTEGER))`).join(', ');
       const params = [];
-      for (const x of b) params.push(x.id, x.data, x.ts);
-      await this.q(
-        `INSERT INTO pages (id, data, updated_at, rev) VALUES ${values} ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev WHERE excluded.updated_at >= pages.updated_at`,
+      for (const x of b) params.push(x.id, x.data, x.updatedAt, x.baseRev || 0);
+      const rows = await this.q(
+        `INSERT INTO pages (id, data, updated_at, rev, base_rev) VALUES ${values} ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev, base_rev = excluded.base_rev WHERE pages.rev = excluded.base_rev RETURNING id, rev`,
         params
       );
+      for (const r of rows) saved[r.id] = Number(r.rev);
+      for (const x of b) if (!(x.id in saved)) rejected.push(x.id);
     }
+    return { saved, rejected, tooLarge: [] };
+  }
+  async fetchPages(ids) {
+    const out = [];
+    for (const part of chunks(ids, 40)) {
+      const rows = await this.q(`SELECT id, updated_at, rev, data FROM pages WHERE id IN (${part.map(() => '?').join(', ')})`, part);
+      out.push(...rows.map((r) => ({ id: r.id, updatedAt: Number(r.updated_at), rev: Number(r.rev) || 0, data: r.data })));
+    }
+    return out;
   }
   async deletePages(ids) {
     for (const part of chunks(ids, 90)) {
@@ -231,17 +283,27 @@ export class LocalStore {
       id: r.id,
       updatedAt: r.updatedAt,
       rev: r.rev || 0,
-      data: (r.rev || 0) >= since ? r.data : null,
+      data: (r.rev || 0) > since ? r.data : null,
     }));
   }
-  async savePages(pages) {
-    const rev = Date.now();
-    for (const p of pages) {
-      const cur = this.rows[p.id];
-      if (cur && cur.updatedAt > p.updatedAt) continue;
-      this.rows[p.id] = { id: p.id, updatedAt: p.updatedAt, rev, data: JSON.stringify(p) };
+  async savePages(items) {
+    const saved = {};
+    const rejected = [];
+    let rev = Math.max(0, ...Object.values(this.rows).map((r) => r.rev || 0));
+    for (const it of items) {
+      const cur = this.rows[it.id];
+      if (cur && (cur.rev || 0) !== (it.baseRev || 0)) {
+        rejected.push(it.id);
+        continue;
+      }
+      this.rows[it.id] = { id: it.id, updatedAt: it.updatedAt, rev: ++rev, data: it.data };
+      saved[it.id] = rev;
     }
     await kvSet(this.key, this.rows);
+    return { saved, rejected, tooLarge: [] };
+  }
+  async fetchPages(ids) {
+    return ids.filter((id) => this.rows[id]).map((id) => ({ ...this.rows[id] }));
   }
   async deletePages(ids) {
     for (const id of ids) delete this.rows[id];

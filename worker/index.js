@@ -40,10 +40,22 @@ async function handleApi(request, env, url, identity) {
   }
 
   if (path === '/api/pages' && method === 'GET') {
-    // since = zuletzt gesehene Revision; Zeilen ab dieser Revision kommen mit Inhalt
+    await ensureSchema(env);
+    const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean);
+    if (ids.length) {
+      // gezielt einzelne Seiten (nach einem abgelehnten Speichern)
+      if (ids.length > MAX_PARAMS) return json({ error: `Höchstens ${MAX_PARAMS} Seiten pro Anfrage` }, 400);
+      const { results } = await env.DB.prepare(
+        `SELECT id, updated_at, rev, data FROM pages WHERE id IN (${ids.map((_, i) => '?' + (i + 1)).join(', ')})`
+      )
+        .bind(...ids)
+        .all();
+      return json({ now: Date.now(), pages: results || [] });
+    }
+    // since = zuletzt gesehene Revision; neuere Zeilen kommen mit Inhalt
     const since = Number(url.searchParams.get('since') || 0) || 0;
     const { results } = await env.DB.prepare(
-      'SELECT id, updated_at, rev, CASE WHEN rev >= ?1 THEN data END AS data FROM pages'
+      'SELECT id, updated_at, rev, CASE WHEN rev > ?1 THEN data END AS data FROM pages'
     )
       .bind(since)
       .all();
@@ -51,12 +63,14 @@ async function handleApi(request, env, url, identity) {
   }
 
   if (path === '/api/pages' && method === 'PUT') {
+    await ensureSchema(env);
     const body = await readJson(request);
     const pages = Array.isArray(body && body.pages) ? body.pages : [];
-    if (!pages.length) return json({ saved: 0 });
+    if (!pages.length) return json({ saved: {}, rejected: [], tooLarge: [] });
     if (pages.length > MAX_BATCH) return json({ error: `Höchstens ${MAX_BATCH} Seiten pro Anfrage` }, 400);
-    const rev = Date.now();
+    const now = Date.now();
     const stmts = [];
+    const ids = [];
     const tooLarge = [];
     for (const p of pages) {
       if (!p || typeof p.id !== 'string' || !p.id || typeof p.data !== 'string') {
@@ -66,21 +80,32 @@ async function handleApi(request, env, url, identity) {
         tooLarge.push(p.id);
         continue;
       }
-      const ts = Number(p.updated_at) || Date.now();
-      // Ältere Stände überschreiben keine neueren (anderes Gerät war schneller)
+      const ts = Math.min(Number(p.updated_at) || now, now + 60000);
+      const base = Number(p.base_rev) || 0;
+      // Optimistische Sperre: nur schreiben, wenn die Seite seit base_rev unverändert ist.
+      // Revision fortlaufend in D1 vergeben (Reihenfolge = Reihenfolge der Schreibvorgänge).
       stmts.push(
         env.DB.prepare(
-          'INSERT INTO pages (id, data, updated_at, rev) VALUES (?1, ?2, ?3, ?4) ' +
-            'ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev ' +
-            'WHERE excluded.updated_at >= pages.updated_at'
-        ).bind(p.id, p.data, ts, rev)
+          'INSERT INTO pages (id, data, updated_at, rev, base_rev) VALUES (?1, ?2, ?3, (SELECT COALESCE(MAX(rev), 0) + 1 FROM pages), ?4) ' +
+            'ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev, base_rev = excluded.base_rev ' +
+            'WHERE pages.rev = excluded.base_rev RETURNING id, rev'
+        ).bind(p.id, p.data, ts, base)
       );
+      ids.push(p.id);
     }
-    if (stmts.length) await env.DB.batch(stmts);
-    return json({ saved: stmts.length, rev, tooLarge });
+    const results = stmts.length ? await env.DB.batch(stmts) : [];
+    const saved = {};
+    const rejected = [];
+    ids.forEach((id, i) => {
+      const row = results[i] && results[i].results && results[i].results[0];
+      if (row) saved[id] = Number(row.rev);
+      else rejected.push(id);
+    });
+    return json({ saved, rejected, tooLarge });
   }
 
   if (path === '/api/pages' && method === 'DELETE') {
+    await ensureSchema(env);
     const body = await readJson(request);
     const ids = Array.isArray(body && body.ids) ? body.ids.filter((x) => typeof x === 'string') : [];
     if (!ids.length) return json({ deleted: 0 });
@@ -119,6 +144,27 @@ async function handleApi(request, env, url, identity) {
   }
 
   return json({ error: 'Nicht gefunden' }, 404);
+}
+
+// Schema anlegen bzw. nachrüsten (einmal pro Worker-Instanz)
+let schemaReady = null;
+function ensureSchema(env) {
+  if (!schemaReady) {
+    schemaReady = (async () => {
+      await env.DB.prepare(
+        'CREATE TABLE IF NOT EXISTS pages (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL, rev INTEGER NOT NULL DEFAULT 0, base_rev INTEGER NOT NULL DEFAULT 0)'
+      ).run();
+      const { results } = await env.DB.prepare('PRAGMA table_info(pages)').all();
+      const cols = new Set((results || []).map((c) => c.name));
+      if (!cols.has('rev')) await env.DB.prepare('ALTER TABLE pages ADD COLUMN rev INTEGER NOT NULL DEFAULT 0').run();
+      if (!cols.has('base_rev')) await env.DB.prepare('ALTER TABLE pages ADD COLUMN base_rev INTEGER NOT NULL DEFAULT 0').run();
+      await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_pages_rev ON pages(rev)').run();
+    })().catch((err) => {
+      schemaReady = null;
+      throw err;
+    });
+  }
+  return schemaReady;
 }
 
 async function readJson(request) {

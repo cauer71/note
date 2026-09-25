@@ -334,7 +334,7 @@ export class AI {
       }
     });
     const m = modal(h('div', { class: 'confirm' }, input, h('div', { class: 'confirm-actions' }, h('button', { class: 'btn', onclick: () => m.close() }, 'Abbrechen'), h('button', { class: 'btn btn-prominent', onclick: go }, 'Los'))), { title: 'Anweisung an Claude', class: 'modal-sm' });
-    setTimeout(() => input.focus(), 30);
+    input.focus();
   }
 
   runTextAction(ed, action, text, target) {
@@ -523,7 +523,7 @@ export class AI {
     box.append(h('div', { class: 'ai-inline-head' }, svg(I.sparkle), ' Claude'), input, suggestions, out, actions);
     el.classList.add('ai-writing');
     el.querySelector('.blk-body').appendChild(box);
-    setTimeout(() => input.focus(), 20);
+    input.focus(); // synchron, damit iOS die Tastatur öffnet und kein Tippen verloren geht
   }
 
   // ------------------------------------------------------------------

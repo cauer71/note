@@ -20,6 +20,7 @@ function mockClaude({ mcpFail = false, seedRows = null } = {}) {
         const sql = input.sql; const p = input.params || [];
         const db = load();
         if (/^CREATE TABLE/i.test(sql)) return ok([]);
+        if (/^PRAGMA table_info/i.test(sql)) return ok(['id', 'data', 'updated_at', 'rev', 'base_rev'].map((name) => ({ name })));
         if (/^SELECT id, updated_at, rev, length\\(data\\) AS size FROM pages$/i.test(sql)) {
           return ok(Object.values(db).map((r) => ({ id: r.id, updated_at: r.updated_at, rev: r.rev || 0, size: r.data.length })));
         }
@@ -28,13 +29,17 @@ function mockClaude({ mcpFail = false, seedRows = null } = {}) {
           return ok(p.map((id) => db[id]).filter(Boolean).map((r) => ({ id: r.id, updated_at: r.updated_at, rev: r.rev || 0, data: r.data })));
         }
         if (/^INSERT INTO pages/i.test(sql)) {
-          if (!/julianday\\('now'\\)/.test(sql)) throw { code: 'tool_error', message: 'rev fehlt' };
-          for (let i = 0; i < p.length; i += 3) {
+          if (!/RETURNING id, rev$/.test(sql) || !/WHERE pages\.rev = excluded\.base_rev/.test(sql)) throw { code: 'tool_error', message: 'Sperre fehlt' };
+          let rev = Math.max(0, ...Object.values(db).map((r) => r.rev || 0)) + 1;
+          const out = [];
+          for (let i = 0; i < p.length; i += 4) {
             const cur = db[p[i]];
-            if (cur && cur.updated_at > Number(p[i + 2])) continue;
-            db[p[i]] = { id: p[i], data: p[i + 1], updated_at: Number(p[i + 2]), rev: Date.now() };
+            if (cur && (cur.rev || 0) !== Number(p[i + 3])) continue;
+            db[p[i]] = { id: p[i], data: p[i + 1], updated_at: Number(p[i + 2]), rev };
+            out.push({ id: p[i], rev });
           }
-          save(db); return ok([]);
+          save(db);
+          return ok(out);
         }
         if (/^DELETE FROM pages/i.test(sql)) { for (const id of p) delete db[id]; save(db); return ok([]); }
         throw { code: 'tool_error', message: 'unbekanntes SQL: ' + sql };

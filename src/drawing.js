@@ -277,6 +277,7 @@ export function renderDrawing(ed, b) {
       /* ok */
     }
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    wrap.classList.add('stroking');
     const tool = toolState.tool;
     if (tool === 'eraser') {
       erasing = { removed: [] };
@@ -311,6 +312,7 @@ export function renderDrawing(ed, b) {
   const finish = (e) => {
     if (e.pointerId !== activePointer) return;
     activePointer = null;
+    wrap.classList.remove('stroking');
     if (erasing) {
       if (erasing.removed.length) {
         undoStack.push({ type: 'erase', strokes: erasing.removed });

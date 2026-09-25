@@ -98,10 +98,16 @@ function walk(src, dst) {
   }
 }
 
+// <template> parst inert: Skripte und onerror-Handler laufen dort nicht
+function inertFragment(html) {
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  return t.content;
+}
+
 export function htmlToText(html) {
   if (!html) return '';
-  const d = document.createElement('div');
-  d.innerHTML = html.replace(/<br\s*\/?>/gi, '\n');
+  const d = inertFragment(html.replace(/<br\s*\/?>/gi, '\n'));
   d.querySelectorAll('.math').forEach((m) => (m.textContent = m.getAttribute('data-tex') || ''));
   return d.textContent || '';
 }
@@ -138,9 +144,7 @@ export function inlineMdToHtml(md) {
 
 export function htmlToInlineMd(html, pageTitle = (id) => id) {
   if (!html) return '';
-  const d = document.createElement('div');
-  d.innerHTML = html;
-  return nodeToMd(d, pageTitle);
+  return nodeToMd(inertFragment(html), pageTitle);
 }
 
 function nodeToMd(node, pageTitle) {
@@ -282,9 +286,7 @@ export function offsetText(el) {
 
 // Länge des gespeicherten HTML (ohne Zero-Width-Spaces aus der Bearbeitung)
 export function modelTextLength(html) {
-  const d = document.createElement('div');
-  d.innerHTML = sanitizeInline(html || '');
-  return nodeLen(d);
+  return nodeLen(inertFragment(sanitizeInline(html || '')));
 }
 
 // Setzt den Caret an einen Textoffset (oder ans Ende bei -1 / zu groß)

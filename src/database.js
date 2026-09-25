@@ -483,7 +483,8 @@ export class DbView {
         const input = h('input', { class: 'cell-input', type: 'url', inputmode: 'url', 'aria-label': p.name, placeholder: '' });
         input.value = v || '';
         input.addEventListener('change', () => this.setValue(r, p, input.value.trim() || null));
-        const link = v ? h('a', { class: 'cell-link', href: /^[a-z]+:/i.test(v) ? v : 'https://' + v, target: '_blank', rel: 'noopener', 'aria-label': 'Link öffnen' }, svg(I.arrowUpRight)) : null;
+        const safe = v && (/^(https?:|mailto:)/i.test(v) ? v : /^[a-z][\w+.-]*:/i.test(v) ? null : 'https://' + v);
+        const link = safe ? h('a', { class: 'cell-link', href: safe, target: '_blank', rel: 'noopener', 'aria-label': 'Link öffnen' }, svg(I.arrowUpRight)) : null;
         return h('div', { class: 'cell-url' }, input, link);
       }
       default: {
@@ -1252,8 +1253,10 @@ function attachCardDrag(el, view, row, onDrop, onClick) {
       if (navigator.vibrate) navigator.vibrate(8);
     };
     if (isTouch) longPress = setTimeout(begin, 320);
+    let maxDist = 0;
     const move = (ev) => {
       if (ev.pointerId !== pid) return;
+      maxDist = Math.max(maxDist, Math.hypot(ev.clientX - sx, ev.clientY - sy));
       if (!dragging) {
         if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) {
           if (isTouch) {
@@ -1284,7 +1287,9 @@ function attachCardDrag(el, view, row, onDrop, onClick) {
       if (wasDragging) {
         el._justDragged = true;
         setTimeout(() => (el._justDragged = false), 400);
-        onDrop(under);
+        // langes Halten ohne Bewegung = Antippen
+        if (maxDist < 8) onClick();
+        else onDrop(under);
       }
     };
     const cleanup = () => {

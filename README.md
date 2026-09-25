@@ -53,12 +53,21 @@ node scripts/serve.mjs # statischer Testserver (http://localhost:4173/?local=dem
 
 ```bash
 export CLOUDFLARE_API_TOKEN=…  CLOUDFLARE_ACCOUNT_ID=c72e13538d36f6905581747d2fd5c1fc
-npx wrangler d1 execute notizen --remote --file schema.sql
+npx wrangler d1 execute notizen --remote --file schema.sql      # nur bei einer neuen Datenbank
 node scripts/seed-sql.mjs && npx wrangler d1 execute notizen --remote --file dist/seed.sql   # Testnotizen (überschreibt nichts)
 npm run deploy
 ```
 
+Bestehende Datenbanken rüstet der Worker (und die Artifact-Version) beim ersten Zugriff selbst nach (`rev`, `base_rev`).
+
 Cloudflare Access schützt `lernraum.auer.page` (Einmal-PIN per E-Mail, dazu ein Service-Token für Skripte). Nur `/icons/*` ist öffentlich, damit „Zum Home-Bildschirm“ das App-Symbol laden kann. Weitere Personen lassen sich in Zero Trust → Access → Anwendungen → *Lernraum* → Richtlinie *Christian* ergänzen.
+
+## Synchronisierung
+
+- Jede Seite ist eine Zeile in D1. `rev` ist eine fortlaufende Revision, die D1 selbst vergibt – Geräteuhren spielen für die Reihenfolge keine Rolle.
+- Speichern ist eine **optimistische Sperre**: Ein Gerät schreibt nur, wenn die Seite seit seiner Basis-Revision unverändert ist. Sonst holt es den neuen Stand, führt **blockweise** zusammen (Dreiwege-Merge gegen die Basis) und speichert erneut. So gehen gleichzeitige Änderungen auf iPhone und iPad nicht verloren.
+- Neue Stände von anderen Geräten werden übernommen, ohne den gerade fokussierten Block neu aufzubauen – die iOS-Tastatur bleibt offen.
+- Offline: Alles liegt zusätzlich in IndexedDB; nicht gespeicherte Änderungen werden beim nächsten Start nachgeholt.
 
 ## Auf dem iPhone/iPad installieren
 

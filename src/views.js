@@ -8,6 +8,7 @@ import { collectAllCards, isDue, studySession, renderTimerCard } from './learn.j
 import { TEMPLATES } from './templates.js';
 import { markdownToBlocks } from './markdown.js';
 import { setFingerDrawing, fingerDrawing } from './drawing.js';
+import { sanitizeBlocks } from './editor.js';
 import { htmlToText } from './inline.js';
 
 function largeTitle(title, sub) {
@@ -515,7 +516,12 @@ function importFile(app) {
         const pages = data.pages || [];
         let n = 0;
         for (const p of pages) {
-          if (!p || !p.id) continue;
+          if (!p || typeof p.id !== 'string' || !p.id) continue;
+          // Blöcke aus der Datei bereinigen (Titel/Symbol werden nur als Text angezeigt)
+          p.blocks = sanitizeBlocks(p.blocks || [], { keepIds: true });
+          if (typeof p.title !== 'string') p.title = '';
+          if (typeof p.icon !== 'string') p.icon = '';
+          p.icon = p.icon.slice(0, 8);
           const cur = app.pages.get(p.id);
           if (!cur || (p.updatedAt || 0) > (cur.updatedAt || 0)) {
             app.pages.set(p.id, p);

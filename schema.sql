@@ -1,13 +1,13 @@
--- Lernraum D1-Schema
--- rev: vom Server vergebene Revision (Millisekunden der Cloudflare-Uhr) als Sync-Marke,
---      unabhängig von den Uhren der Geräte
+-- Lernraum D1-Schema (neue Datenbanken; bestehende rüstet der Worker automatisch nach)
+-- rev: fortlaufende Revision, in D1 vergeben – Sync-Marke unabhängig von Geräteuhren
+-- base_rev: Revision, auf der eine Änderung beruht (optimistische Sperre beim Speichern)
 CREATE TABLE IF NOT EXISTS pages (
   id TEXT PRIMARY KEY,
   data TEXT NOT NULL,
   updated_at INTEGER NOT NULL,
-  rev INTEGER NOT NULL DEFAULT 0
+  rev INTEGER NOT NULL DEFAULT 0,
+  base_rev INTEGER NOT NULL DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_pages_rev ON pages(rev);
 
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,

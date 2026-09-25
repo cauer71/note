@@ -16,8 +16,7 @@
     {
       "binding": "DB",
       "database_name": "notizen",
-      "database_id": "7f5ba627-dfd3-4ba6-a7cb-e8afcf315eb1",
-      "migrations_dir": "migrations"
+      "database_id": "7f5ba627-dfd3-4ba6-a7cb-e8afcf315eb1"
     }
   ],
   "vars": {

@@ -4,7 +4,8 @@ import { h, svg, uid, clone, debounce, toast, isNarrow, isTouchUI, mod, storageG
 import { I } from './icons.js';
 import { Editor } from './editor.js';
 import { newPage, newBlock, newDatabase, newRow, pageTitle, TEXT_TYPES, duplicateBlocks, fmtPropValue } from './model.js';
-import { menu, popover, emojiPicker, confirmDialog, closeAllPopovers, modal } from './menus.js';
+import { menu, popover, emojiPicker, confirmDialog, closeAllPopovers, modal, hasOpenPopover } from './menus.js';
+import { mergePage } from './merge.js';
 import { blocksToMarkdown, blocksToPlain, markdownToBlocks } from './markdown.js';
 import { renderDatabasePage, renderRowProps } from './database.js';
 import { updateTocs, renderMathIn } from './blocks.js';
@@ -36,7 +37,9 @@ export class App {
     this.dirty = new Set();
     this.knownRemote = new Set();
     this.savedAt = new Map();
-    this.deferred = new Map();
+    this.base = new Map();
+    this.baseRev = new Map();
+    this.uploading = new Set();
     this.tooLarge = new Set();
     this.tooLargeWarned = new Set();
     this.store = null;
@@ -47,7 +50,7 @@ export class App {
     this.expanded = new Set(storageGet('lr:expanded', []));
     this.sidebarOpen = storageGet('lr:sidebar', true);
     this.syncState = 'idle';
-    this.lastSync = 0;
+    this.lastSync = -1; // -1 = noch nie synchronisiert (auch Zeilen mit rev 0 laden)
     this.lastSaved = 0;
     this.saveTimer = null;
     this.retryDelay = 4000;
@@ -136,8 +139,10 @@ export class App {
         if (cached && cached.pages && !this.pages.size) {
           for (const p of cached.pages) this.pages.set(p.id, p);
           this.knownRemote = new Set(cached.known || []);
-          this.lastSync = cached.v === 2 ? cached.lastSync || 0 : 0;
+          this.lastSync = cached.v === 4 && Number.isFinite(cached.lastSync) ? cached.lastSync : -1;
           (cached.dirty || []).forEach((id) => this.dirty.add(id));
+          for (const [id, json] of Object.entries(cached.base || {})) this.base.set(id, json);
+          for (const [id, r] of Object.entries(cached.baseRev || {})) this.baseRev.set(id, Number(r) || 0);
           this.store = store;
           this.cacheKey = cacheKey;
           this._renderNav();
@@ -219,7 +224,8 @@ export class App {
   // ---------------------------------------------------------------------
   touch(page, opts = {}) {
     if (!page) return;
-    page.updatedAt = Date.now();
+    // Lamport-artig: immer größer als der zuletzt bekannte Stand (auch bei falsch gehender Uhr)
+    page.updatedAt = Math.max(Date.now(), (page.updatedAt || 0) + 1);
     this.dirty.add(page.id);
     this.tooLarge.delete(page.id);
     this.setSync('pending');
@@ -238,10 +244,13 @@ export class App {
 
   flushSave() {
     this.saveSoon.cancel();
+    const pending = this.dirty.size || this.uploading.size;
     if (this.dirty.size) this.save();
-    // sofort in IndexedDB sichern – falls die App jetzt beendet wird, wird beim nächsten Start nachgespeichert
-    this.cacheSoon.cancel();
-    this.writeCache();
+    // sofort in IndexedDB sichern (inkl. laufender Uploads) – falls iOS die App jetzt beendet
+    if (pending) {
+      this.cacheSoon.cancel();
+      this.writeCache();
+    }
   }
 
   async save() {
@@ -256,7 +265,7 @@ export class App {
     }
     this.saving = true;
     this.setSync('syncing');
-    const pages = [];
+    const items = [];
     const deleted = [];
     for (const id of ids) {
       const p = this.pages.get(id);
@@ -264,32 +273,60 @@ export class App {
         deleted.push(id);
         continue;
       }
-      const clean = stripTransient(p);
-      if (pageBytes(JSON.stringify(clean)) > MAX_PAGE_BYTES) {
+      const data = JSON.stringify(stripTransient(p));
+      if (pageBytes(data) > MAX_PAGE_BYTES) {
         this.tooLarge.add(id);
-        if (this.tooLargeWarned.has(id)) continue;
-        this.tooLargeWarned.add(id);
-        toast(`„${pageTitle(p)}“ ist zu groß zum Speichern (max. 1,9 MB). Verkleinere Bilder oder teile die Handschrift auf mehrere Seiten auf.`, { kind: 'error', duration: 8000 });
+        if (!this.tooLargeWarned.has(id)) {
+          this.tooLargeWarned.add(id);
+          toast(`„${pageTitle(p)}“ ist zu groß zum Speichern (max. 1,9 MB). Verkleinere Bilder oder teile die Handschrift auf mehrere Seiten auf.`, { kind: 'error', duration: 8000 });
+        }
         continue;
       }
-      pages.push(clean);
+      items.push({ id, data, updatedAt: p.updatedAt, baseRev: this.baseRev.get(id) || 0 });
     }
-    const sent = [...pages.map((p) => p.id), ...deleted];
-    sent.forEach((id) => this.dirty.delete(id));
+    const sent = [...items.map((x) => x.id), ...deleted];
+    sent.forEach((id) => {
+      this.dirty.delete(id);
+      this.uploading.add(id);
+    });
     try {
-      if (pages.length) await this.store.savePages(pages);
+      let res = { saved: {}, rejected: [], tooLarge: [] };
+      if (items.length) res = (await this.store.savePages(items)) || res;
       if (deleted.length) await this.store.deletePages(deleted);
       const now = Date.now();
-      pages.forEach((p) => {
-        this.knownRemote.add(p.id);
-        this.savedAt.set(p.id, now);
-      });
-      deleted.forEach((id) => {
+      const rejected = new Set(res.rejected || []);
+      for (const id of res.tooLarge || []) this.tooLarge.add(id);
+      for (const it of items) {
+        if (rejected.has(it.id) || this.tooLarge.has(it.id)) continue;
+        this.knownRemote.add(it.id);
+        this.savedAt.set(it.id, now);
+        this.base.set(it.id, it.data);
+        if (res.saved && res.saved[it.id] != null) this.baseRev.set(it.id, Number(res.saved[it.id]));
+      }
+      for (const id of deleted) {
         this.knownRemote.delete(id);
         this.savedAt.set(id, now);
-      });
+        this.base.delete(id);
+        this.baseRev.delete(id);
+      }
       this.lastSaved = now;
       this.retryDelay = 4000;
+      if (rejected.size) {
+        // Ein anderes Gerät hat die Seite inzwischen geändert: neuen Stand holen, zusammenführen, erneut speichern
+        this.conflictRounds = (this.conflictRounds || 0) + 1;
+        const rows = this.store.fetchPages ? await this.store.fetchPages([...rejected]) : [];
+        const found = new Set(rows.map((r) => r.id));
+        let current = false;
+        for (const row of rows) if (this.absorbRow(row, 0) === 'current') current = true;
+        for (const id of rejected) {
+          if (!found.has(id)) this.baseRev.set(id, 0); // dort gelöscht → neu anlegen
+          if (this.pages.has(id)) this.dirty.add(id);
+        }
+        if (current) this.refreshCurrent();
+        this._renderNav();
+        if (this.conflictRounds > 5) throw new Error('Konflikt beim Speichern – bitte später erneut versuchen');
+        this.saveAgain = true; // zusammengeführten Stand gleich speichern
+      } else this.conflictRounds = 0;
       this.setSync(this.dirty.size && [...this.dirty].some((id) => !this.tooLarge.has(id)) ? 'pending' : 'saved');
       this.cacheSoon();
     } catch (err) {
@@ -300,6 +337,7 @@ export class App {
       this.retryTimer = setTimeout(() => this.save(), this.retryDelay);
       this.retryDelay = Math.min(120000, this.retryDelay * 2);
     } finally {
+      sent.forEach((id) => this.uploading.delete(id));
       this.saving = false;
       if (this.saveAgain) {
         this.saveAgain = false;
@@ -308,14 +346,30 @@ export class App {
     }
   }
 
+  resyncSoon() {
+    clearTimeout(this._resync);
+    this._resync = setTimeout(async () => {
+      this.lastSyncAt = 0;
+      await this.sync();
+      if (this.dirty.size) this.save();
+    }, 50);
+  }
+
   async writeCache() {
     if (!this.cacheKey) return;
+    const pendingIds = [...new Set([...this.dirty, ...this.uploading])];
+    const base = {};
+    for (const id of pendingIds) if (this.base.has(id)) base[id] = this.base.get(id);
+    const baseRev = {};
+    for (const [id, r] of this.baseRev) baseRev[id] = r;
     await kvSet(this.cacheKey, {
       pages: [...this.pages.values()].map(stripTransient),
       known: [...this.knownRemote],
-      dirty: [...this.dirty],
+      dirty: pendingIds,
+      base,
+      baseRev,
       lastSync: this.lastSync,
-      v: 2,
+      v: 4,
     });
   }
 
@@ -323,29 +377,58 @@ export class App {
     return !!(this.editor && this.editor.page.id === id && this.editor.root.contains(document.activeElement)) || (this.titleEl && document.activeElement === this.titleEl && this.currentId === id);
   }
 
-  // Übernimmt den Serverstand in das bestehende Objekt (Referenzen in Editor/Ansichten bleiben gültig)
-  applyRemote(id, remote) {
-    const local = this.pages.get(id);
-    if (local) {
-      for (const k of Object.keys(local)) delete local[k];
-      Object.assign(local, remote);
-    } else this.pages.set(id, remote);
+  // Gerade eine Interaktion auf dieser Seite (Menü, Ziehen, Stiftstrich, KI schreibt)? Dann später übernehmen.
+  isBusy(id) {
+    if (id !== this.currentId) return false;
+    return hasOpenPopover() || document.body.classList.contains('is-dragging') || !!document.querySelector('.ai-writing, .draw-block.stroking, .modal-backdrop');
   }
 
-  // Zurückgestellte Serverstände anwenden (nach dem Tippen)
-  applyDeferred() {
-    if (!this.deferred.size) return;
-    let changedCurrent = false;
-    for (const [id, remote] of [...this.deferred]) {
-      if (this.isEditing(id)) continue;
-      this.deferred.delete(id);
-      const local = this.pages.get(id);
-      if (this.dirty.has(id) || (local && (local.updatedAt || 0) >= (remote.updatedAt || 0))) continue;
-      this.applyRemote(id, remote);
-      if (id === this.currentId) changedCurrent = true;
+  // Übernimmt einen Stand in das bestehende Objekt (Referenzen in Editor/Ansichten bleiben gültig)
+  applyInto(local, next) {
+    for (const k of Object.keys(local)) delete local[k];
+    Object.assign(local, next);
+  }
+
+  // Übernimmt eine Zeile vom Server. Rückgabe: 'current' | 'nav' | 'held' | null
+  absorbRow(row, startedAt) {
+    const id = row.id;
+    const pending = this.dirty.has(id) || this.uploading.has(id);
+    if (!row.data) {
+      if (!pending && this.pages.has(id)) this.baseRev.set(id, row.rev || 0);
+      return null;
     }
-    this._renderNav();
-    if (changedCurrent) this.route(true);
+    if (this.base.get(id) === row.data) {
+      this.baseRev.set(id, row.rev || 0);
+      return null; // eigener bzw. schon bekannter Stand
+    }
+    let remote;
+    try {
+      remote = JSON.parse(row.data);
+    } catch {
+      return null;
+    }
+    const local = this.pages.get(id);
+    if (!local) {
+      // hier gelöscht (noch nicht gesendet oder gerade gelöscht) → nicht wiederbeleben
+      if (pending || (this.savedAt.get(id) || 0) >= startedAt) return null;
+      this.pages.set(id, remote);
+      this.base.set(id, row.data);
+      this.baseRev.set(id, row.rev || 0);
+      return 'nav';
+    }
+    if (this.isBusy(id)) return 'held';
+    if (pending) {
+      // beide Seiten haben geändert → blockweise zusammenführen
+      const baseJson = this.base.get(id);
+      const merged = baseJson ? mergePage(JSON.parse(baseJson), JSON.parse(JSON.stringify(local)), remote) : JSON.parse(JSON.stringify(local));
+      merged.updatedAt = Math.max(local.updatedAt || 0, remote.updatedAt || 0) + 1;
+      this.applyInto(local, merged);
+      this.dirty.add(id);
+    } else this.applyInto(local, remote);
+    this.base.set(id, row.data);
+    this.baseRev.set(id, row.rev || 0);
+    this.tooLarge.delete(id);
+    return id === this.currentId ? 'current' : 'nav';
   }
 
   async sync(initial = false) {
@@ -355,61 +438,79 @@ export class App {
     const startedAt = Date.now();
     const knownBefore = new Set(this.knownRemote);
     try {
-      const since = initial && !this.pages.size ? 0 : this.lastSync;
+      const since = initial && !this.pages.size ? -1 : this.lastSync;
       const rows = await this.store.loadAll(since);
       this.lastSyncAt = Date.now();
-      let changed = false;
-      let changedCurrent = false;
+      let navChanged = false;
+      let currentChanged = false;
+      let minHeld = Infinity;
       const remoteIds = new Set();
       let maxRev = this.lastSync;
       for (const row of rows) {
         remoteIds.add(row.id);
-        maxRev = Math.max(maxRev, row.rev || 0);
-        if (!row.data) continue;
-        let p;
-        try {
-          p = JSON.parse(row.data);
-        } catch {
-          continue;
+        if (row.data) maxRev = Math.max(maxRev, row.rev || 0);
+        const r = this.absorbRow(row, startedAt);
+        if (r === 'held') minHeld = Math.min(minHeld, row.rev || 0);
+        else if (r) {
+          navChanged = true;
+          if (r === 'current') currentChanged = true;
         }
-        const local = this.pages.get(row.id);
-        const remoteTs = p.updatedAt || row.updatedAt || 0;
-        if (local && (this.dirty.has(row.id) || remoteTs <= (local.updatedAt || 0))) continue;
-        if (local && this.isEditing(row.id)) {
-          this.deferred.set(row.id, p);
-          continue;
-        }
-        this.applyRemote(row.id, p);
-        this.tooLarge.delete(row.id);
-        changed = true;
-        if (row.id === this.currentId) changedCurrent = true;
       }
       // Anderswo gelöschte Seiten entfernen – nur was vor dieser Abfrage bekannt war
       // und seitdem nicht von hier gespeichert wurde
+      const keepKnown = new Set();
       for (const id of [...this.pages.keys()]) {
-        if (remoteIds.has(id) || !knownBefore.has(id) || this.dirty.has(id)) continue;
+        if (remoteIds.has(id) || !knownBefore.has(id) || this.dirty.has(id) || this.uploading.has(id)) continue;
         if ((this.savedAt.get(id) || 0) >= startedAt) continue;
-        if (this.isEditing(id)) continue;
+        if (this.isEditing(id) || this.isBusy(id)) {
+          keepKnown.add(id); // beim nächsten Mal erneut prüfen
+          continue;
+        }
         this.pages.delete(id);
-        changed = true;
-        if (id === this.currentId) changedCurrent = true;
+        this.base.delete(id);
+        this.baseRev.delete(id);
+        navChanged = true;
+        if (id === this.currentId) currentChanged = true;
       }
-      const known = new Set(remoteIds);
+      const known = new Set([...remoteIds, ...keepKnown]);
       for (const [id, t] of this.savedAt) if (t >= startedAt && this.pages.has(id)) known.add(id);
       this.knownRemote = known;
-      this.lastSync = maxRev;
-      if (changed) {
+      // zurückgestellte Zeilen beim nächsten Mal wieder abholen
+      this.lastSync = minHeld < Infinity ? Math.min(maxRev, minHeld - 1) : maxRev;
+      if (minHeld < Infinity) setTimeout(() => this.resyncSoon(), 3000);
+      if (navChanged) {
         this._renderNav();
-        if (changedCurrent || !this.currentId || this.view !== 'page') this.route(true);
+        if (currentChanged) this.refreshCurrent();
+        else if (!this.currentId || this.view !== 'page') this.route(true);
         this.cacheSoon();
       }
-      if (!this.dirty.size) this.setSync('saved');
+      if (this.dirty.size) this.saveSoon();
+      else this.setSync('saved');
     } catch (err) {
       if (initial) throw err;
       this.setSync('offline', err);
     } finally {
       this.syncing = false;
     }
+  }
+
+  // Aktuelle Seite nach einer Änderung von außen aktualisieren – ohne Fokus/Tastatur zu verlieren
+  refreshCurrent() {
+    const p = this.currentPage();
+    if (!p) return this.route(true);
+    if (this.editor && this.editor.page === p) {
+      if (this.titleEl && document.activeElement !== this.titleEl && this.titleEl.textContent !== (p.title || '')) this.titleEl.textContent = p.title || '';
+      this.editor.applyRemoteBlocks();
+      if (p.isRow) {
+        const db = this.getPage(p.parentId);
+        const old = this.content.querySelector('.row-props');
+        if (db && old && !old.contains(document.activeElement)) old.replaceWith(renderRowProps(this, p, db));
+      }
+      this.updateMeta();
+      this.renderNavbar();
+    } else if (this.dbview && !this.content.contains(document.activeElement)) {
+      this.dbview.refresh();
+    } else if (!this.content.contains(document.activeElement)) this.route(true);
   }
 
   setSync(state, err) {
@@ -843,7 +944,6 @@ export class App {
     this.titleEl = null;
     this.dbview = null;
     this.flushSave();
-    if (this.deferred.size) setTimeout(() => this.applyDeferred(), 0);
   }
 
   // ---------------------------------------------------------------------
@@ -1426,7 +1526,6 @@ export class App {
   }
   onEditorBlur(ed) {
     this.toolbars.onBlur(ed);
-    setTimeout(() => this.applyDeferred(), 200);
   }
   onBlockSelection(ed) {
     this.toolbars.onSelection(ed);
@@ -1640,7 +1739,10 @@ function attachTreeDrag(app, row, p, flat) {
           app.movePage(p.id, tp.parentId || null, next && next.id !== p.id ? next.id : null);
         }
       }
-      setTimeout(() => (row._menuOpen = false), 400);
+      setTimeout(() => {
+        row._menuOpen = false;
+        row._suppressClick = false;
+      }, 600);
     };
     const cleanup = () => {
       window.removeEventListener('pointermove', move, true);

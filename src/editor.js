@@ -90,6 +90,7 @@ export class Editor {
   renderBlock(b) {
     this.cacheBlobs(b);
     const el = h('div', { class: 'blk blk-' + b.type, 'data-id': b.id });
+    el._block = b;
     el.style.setProperty('--indent', b.indent || 0);
     const gutter = h(
       'div',
@@ -131,6 +132,51 @@ export class Editor {
     }
     this.els.set(b.id, el);
     return el;
+  }
+
+  // Neuer Stand von außen (anderes Gerät): alles um den fokussierten Block herum neu aufbauen.
+  // Das fokussierte Element bleibt im DOM → iOS-Tastatur und Caret bleiben erhalten.
+  applyRemoteBlocks() {
+    const blocks = this.page.blocks || (this.page.blocks = []);
+    if (!blocks.length) blocks.push(newBlock('p'));
+    this.history.reset();
+    this.clearSelection();
+    const active = document.activeElement;
+    const focusBlk = active && this.root.contains(active) ? active.closest('.blk') : null;
+    const focusId = focusBlk && focusBlk.dataset.id;
+    const idx = focusId ? blocks.findIndex((b) => b.id === focusId) : -1;
+    if (!focusBlk || idx < 0 || !focusBlk.classList.contains('blk-' + blocks[idx].type)) {
+      this.render();
+      return;
+    }
+    const nb = blocks[idx];
+    if (TEXT_TYPES.has(nb.type) && active.classList.contains('blk-text')) {
+      const cur = sanitizeInline(active.innerHTML);
+      if (cur !== (nb.text || '')) {
+        const off = getCaretOffset(active);
+        active.innerHTML = sanitizeInline(nb.text || '');
+        renderMathIn(active);
+        setCaretOffset(active, Math.min(off, textLength(active)));
+      }
+      focusBlk._block = nb;
+    } else {
+      // Spezialblock (Code, Tabelle, Karten …) hält Referenzen → lokale Fassung behalten
+      blocks[idx] = focusBlk._block || nb;
+    }
+    for (const [id, el] of this.els) if (el !== focusBlk) el.remove();
+    this.els.clear();
+    this.els.set(focusId, focusBlk);
+    let after = false;
+    for (const b of blocks) {
+      if (b.id === focusId) {
+        after = true;
+        continue;
+      }
+      const el = this.renderBlock(b);
+      if (after) this.root.appendChild(el);
+      else this.root.insertBefore(el, focusBlk);
+    }
+    this.refreshLayout();
   }
 
   rerenderBlock(b, focusOffset) {
@@ -1833,6 +1879,13 @@ class History {
   dispose() {
     clearTimeout(this.timer);
   }
+  reset() {
+    clearTimeout(this.timer);
+    this.undoStack = [];
+    this.redoStack = [];
+    this.burst = false;
+    this.stable = this.snap();
+  }
   snap() {
     const p = this.ed.page;
     return JSON.stringify({ t: p.title, b: p.blocks }, (k, v) => (k === 'strokes' || (k === 'src' && typeof v === 'string' && v.startsWith('data:')) ? undefined : v));
@@ -1874,7 +1927,7 @@ class History {
     for (const b of ed.page.blocks) if (b.type === 'flashcards') for (const c of b.cards || []) progress.set(c.id, { box: c.box, due: c.due, reps: c.reps, last: c.last, lapses: c.lapses });
     for (const b of data.b) if (b.type === 'flashcards') for (const c of b.cards || []) if (progress.has(c.id)) Object.assign(c, progress.get(c.id));
     // Unterseiten, die per Rückgängig wieder auftauchen, aus dem Papierkorb holen
-    for (const b of data.b) if (b.type === 'page' && b.pageId) ed.app.restorePage(b.pageId, { silent: true });
+    for (const b of data.b) if (b.type === 'page' && b.pageId && !before.has(b.id)) ed.app.restorePage(b.pageId, { silent: true });
     ed.page.blocks = data.b;
     ed.render();
     ed.app.onTitleRestored && ed.app.onTitleRestored(ed.page);
@@ -2056,12 +2109,15 @@ function blockInsertIndex(blocks, idx) {
 }
 
 // Blöcke aus fremden Quellen (Zwischenablage, Import) bereinigen
-export function sanitizeBlocks(list) {
+export function sanitizeBlocks(list, opts = {}) {
   if (!Array.isArray(list)) return [];
   const out = [];
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   for (const x of list) {
     if (!x || typeof x !== 'object' || !TYPE_BY_ID[x.type]) continue;
     const b = newBlock(x.type);
+    if (opts.keepIds && typeof x.id === 'string' && /^[\w-]{1,40}$/.test(x.id)) b.id = x.id;
+    if (typeof x.title === 'string') b.title = x.title.slice(0, 200);
     b.indent = Math.max(0, Math.min(6, Number(x.indent) || 0));
     if (typeof x.text === 'string') b.text = x.type === 'code' ? x.text : sanitizeInline(x.text);
     if (x.type === 'todo') b.checked = !!x.checked;
@@ -2078,8 +2134,21 @@ export function sanitizeBlocks(list) {
     if (x.type === 'image' && typeof x.src === 'string' && /^(data:image\/|https:)/.test(x.src)) {
       b.src = x.src;
       b.caption = String(x.caption || '');
+      if (x.w) b.w = num(x.w);
+      if (x.h) b.h = num(x.h);
     }
-    if (x.type === 'flashcards' && Array.isArray(x.cards)) b.cards = x.cards.map((c) => ({ id: uid('k'), q: sanitizeInline(String(c.q || '')), a: sanitizeInline(String(c.a || '')), box: 0, due: 0 }));
+    if (x.type === 'flashcards' && Array.isArray(x.cards))
+      b.cards = x.cards.map((c) => ({
+        id: typeof c.id === 'string' && /^[\w-]{1,40}$/.test(c.id) ? c.id : uid('k'),
+        q: sanitizeInline(String(c.q || '')),
+        a: sanitizeInline(String(c.a || '')),
+        box: num(c.box),
+        due: num(c.due),
+        reps: num(c.reps),
+        last: num(c.last),
+        lapses: num(c.lapses),
+      }));
+    if (x.type === 'quiz' && x.lastScore && typeof x.lastScore === 'object') b.lastScore = { pct: num(x.lastScore.pct), at: num(x.lastScore.at) };
     if (x.type === 'quiz' && Array.isArray(x.questions)) b.questions = x.questions.map((q) => ({ q: String(q.q || ''), options: (q.options || []).map(String), correct: Number(q.correct) || 0, explain: String(q.explain || '') }));
     if (x.type === 'drawing' && Array.isArray(x.strokes)) {
       b.strokes = x.strokes.filter((s) => s && Array.isArray(s.p)).map((s) => ({ t: s.t === 'hl' ? 'hl' : 'pen', c: String(s.c || 'ink').slice(0, 12), w: Number(s.w) || 3, p: s.p.map(Number) }));
