@@ -18,6 +18,11 @@ if (typeof window !== 'undefined') {
   });
 }
 
+/** Bietet der Browser gerade ein eigenes Installationsfenster an (Android/Chrome)? */
+export function hasInstallPrompt() {
+  return !!deferred;
+}
+
 export function onInstallChange(f) {
   listeners.add(f);
   return () => listeners.delete(f);
@@ -40,7 +45,8 @@ export function canInstall(app) {
   return !!deferred || platform() !== 'desktop';
 }
 
-function hint() {
+/** Kurze Anleitung, wie man die App auf dieser Plattform installiert */
+export function installHint() {
   const p = platform();
   if (p === 'ios') return /iPad|Macintosh/.test(navigator.userAgent) ? 'Oben rechts auf „Teilen“ tippen und „Zum Home-Bildschirm“ wählen.' : 'Unten auf „Teilen“ tippen und „Zum Home-Bildschirm“ wählen.';
   if (p === 'android') return 'Im Browsermenü ⋮ „App installieren“ bzw. „Zum Startbildschirm hinzufügen“ wählen.';
@@ -49,7 +55,7 @@ function hint() {
 
 export async function promptInstall() {
   if (!deferred) {
-    toast(hint());
+    toast(installHint());
     return false;
   }
   const e = deferred;
@@ -61,7 +67,7 @@ export async function promptInstall() {
   return !!(choice && choice.outcome === 'accepted');
 }
 
-const sub = () => `Startet im Vollbild mit eigenem Symbol und funktioniert auch offline. ${deferred ? '' : hint()}`;
+const sub = () => `Startet im Vollbild mit eigenem Symbol und funktioniert auch offline. ${deferred ? '' : installHint()}`;
 
 /** Zeile(n) für die Einstellungen */
 export function installSection(app) {
@@ -83,7 +89,7 @@ export function installCard(app) {
     ? h('div', { class: 'install-card-sub' }, 'Eigenes Symbol, Vollbild, auch offline.')
     : p === 'ios'
       ? h('div', { class: 'install-card-sub' }, 'Tippe auf ', h('span', { class: 'install-share' }, svg(I.share)), ' „Teilen“ und dann „Zum Home-Bildschirm“.')
-      : h('div', { class: 'install-card-sub' }, hint());
+      : h('div', { class: 'install-card-sub' }, installHint());
   const card = h(
     'div',
     { class: 'install-card' },
