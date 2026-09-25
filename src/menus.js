@@ -65,16 +65,29 @@ export function popover(anchor, content, opts = {}) {
   });
   document.addEventListener('keydown', onKey, true);
 
+  // Letzte bekannte Knopfposition: wird der Knopf neu gebaut (Tastaturleiste), bleibt das Menü an seiner Stelle
+  let lastRect = null;
   function place() {
     if (sheet) return;
-    const r = anchor instanceof Element ? anchor.getBoundingClientRect() : anchor;
+    const live = anchor instanceof Element ? anchor.isConnected && anchor.getBoundingClientRect() : anchor;
+    const r = live && (live.width || live.height || !(anchor instanceof Element)) ? live : lastRect || live || { left: 8, right: 8, top: 8, bottom: 8, width: 0, height: 0 };
+    lastRect = r;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+    // Höhe nach dem freien Platz: unten begrenzt durch schwebende Leisten (Seiten-Leiste, Tab-Leiste, Tastaturleiste)
+    let floor = vh - 8;
+    document.querySelectorAll('.page-toolbar > *, .tabbar > *, .kb-bar > *').forEach((x) => {
+      const br = x.getBoundingClientRect();
+      if (br.height && br.top >= r.bottom && getComputedStyle(x).opacity !== '0') floor = Math.min(floor, br.top - 12);
+    });
+    const below = floor - (r.bottom + 6);
+    const aboveRoom = r.top - 6 - 8;
+    el.style.maxHeight = Math.max(160, Math.min(vh - 16, opts.above ? aboveRoom : Math.max(below, aboveRoom))) + 'px';
     const pw = el.offsetWidth;
     const ph = el.offsetHeight;
     let left = opts.alignRight ? r.right - pw : r.left;
     let top = opts.above ? r.top - ph - 6 : r.bottom + 6;
-    if (top + ph > vh - 8) top = Math.max(8, r.top - ph - 6);
+    if (top + ph > floor) top = Math.max(8, r.top - ph - 6);
     if (top < 8) top = 8;
     left = Math.max(8, Math.min(left, vw - pw - 8));
     el.style.left = left + 'px';

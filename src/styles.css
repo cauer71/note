@@ -894,6 +894,10 @@ body:not(.is-narrow) .nav-center {
 body.is-narrow .banner {
   top: calc(env(safe-area-inset-top, 0px) + 62px);
 }
+/* iPad/Mac mit angedockter Seitenleiste: mittig über der Inhaltsspalte, nicht Glas über Glas */
+body:not(.is-narrow):not(.is-compact):not(.sidebar-closed) .banner {
+  left: calc(var(--sb-w) + 16px);
+}
 .banner > .ico {
   color: var(--orange);
   width: 20px;
@@ -5062,6 +5066,14 @@ body.is-narrow .modal:not(.modal-settings, .modal-templates, .modal-search) .mod
   outline: none;
   font-size: 17px;
   min-width: 0;
+  /* Eingegebener Text in voller Labelfarbe; Sekundärfarbe nur für Lupe und Platzhalter */
+  color: var(--label);
+  -webkit-text-fill-color: var(--label);
+}
+.search-input::placeholder {
+  color: var(--label-2);
+  -webkit-text-fill-color: var(--label-2);
+  opacity: 1;
 }
 .search-input::-webkit-search-cancel-button {
   display: none;
@@ -5105,8 +5117,9 @@ body.has-page-toolbar .toasts {
 body.kb-open .toasts {
   bottom: calc(env(safe-area-inset-bottom, 0px) + 76px + var(--kb-offset, 0px));
 }
-/* Bei offenem Sheet/Dialog nach oben, damit der Toast dessen Titel nicht verdeckt */
-body:has(.modal-backdrop, .sheet-backdrop) .toasts {
+/* Bei offenem Sheet nach oben, damit der Toast dessen Titel nicht verdeckt (mittige Alerts: unten bleiben,
+   sonst liegt der Toast auf den Glasknöpfen der Navigationsleiste) */
+body:has(.sheet-backdrop, .modal-backdrop:not(:has(> .modal-alert))) .toasts {
   bottom: auto;
   top: calc(env(safe-area-inset-top, 0px) + 12px);
 }
@@ -5340,8 +5353,8 @@ body.vkb .kb-bar {
   transition: opacity 0.2s, transform 0.3s var(--spring), background-color 0.2s, box-shadow 0.2s;
 }
 /* iPhone: Leisten ausblenden, solange ein Sheet, Dialog oder Claude offen ist */
-body.is-narrow:has(.sheet-backdrop, .modal-backdrop) :is(.page-toolbar, .tabbar) > *,
-body.is-narrow.ai-open :is(.page-toolbar, .tabbar) > * {
+body.is-narrow:has(.sheet-backdrop, .modal-backdrop) :is(.page-toolbar, .tabbar, .kb-bar) > *,
+body.is-narrow.ai-open :is(.page-toolbar, .tabbar, .kb-bar) > * {
   opacity: 0;
   pointer-events: none;
 }

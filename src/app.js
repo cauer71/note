@@ -1326,8 +1326,13 @@ export class App {
       { divider: true },
       { label: 'In den Papierkorb', icon: I.trash, danger: true, onSelect: () => this.trashPage(p.id) },
       { divider: true },
-      { label: `${words} Wörter · bearbeitet ${relTime(p.updatedAt)}`, disabled: true },
-      { label: 'Erstellt am ' + fmtDate(p.createdAt || Date.now()), disabled: true },
+      // iPhone: Infos in einer Zeile, damit das Menü möglichst ohne Scrollen passt
+      ...(isNarrow()
+        ? [{ label: `${words} Wörter · bearbeitet ${relTime(p.updatedAt)}`, disabled: true }]
+        : [
+            { label: `${words} Wörter · bearbeitet ${relTime(p.updatedAt)}`, disabled: true },
+            { label: 'Erstellt am ' + fmtDate(p.createdAt || Date.now()), disabled: true },
+          ]),
     ].filter(Boolean);
     // iOS 26: Menü an einem Leistenknopf klappt am Knopf auf (kein Bottom-Sheet)
     menu(anchor, items, { title: pageTitle(p), alignRight: true, sheet: false });

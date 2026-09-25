@@ -1698,6 +1698,8 @@ export class Editor {
 
   blockMenu(anchor, b) {
     const ids = this.selected.has(b.id) ? this.selectedIds() : [b.id];
+    // Position vor selectBlocks() merken: das baut die Tastaturleiste neu, der Knopf ist danach nicht mehr im DOM
+    if (anchor instanceof Element) anchor = anchor.getBoundingClientRect();
     if (!this.selected.has(b.id)) this.selectBlocks(ids);
     const isTextish = TEXT_TYPES.has(b.type) || b.type === 'code';
     const items = [];
