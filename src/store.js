@@ -28,7 +28,9 @@ export class ApiStore {
     this.label = 'Cloudflare D1';
     this.workspace = expected || '';
     this.expectsWorkspace = !!expected;
-    this.cacheKey = expected ? 'api:' + expected : 'api';
+    // nie 'api' (der alte gemeinsame Schlüssel): der wird nur noch nach Bestätigung übernommen
+    this.cacheKey = expected ? 'api:' + expected : 'api:?';
+    this.verifiesIdentity = true; // Zwischenspeicher erst nach Bestätigung zeigen (siehe App.connect)
     this.ready = false;
   }
   // Bis init() fertig ist, schickt jede Anfrage den erwarteten Arbeitsbereich mit – der Worker
@@ -51,7 +53,7 @@ export class ApiStore {
   async check(r) {
     if (r.status === 409) {
       const j = await r.json().catch(() => ({}));
-      if (j.code === 'workspace') throw Object.assign(new Error('Anderer Arbeitsbereich angemeldet'), { code: 'workspace' });
+      if (j.code === 'workspace') throw Object.assign(new Error('Anderer Arbeitsbereich angemeldet'), { code: 'workspace', workspace: j.workspace || '' });
     }
     return r;
   }
@@ -137,6 +139,13 @@ export class ApiStore {
 const SQL_REV = '(SELECT COALESCE(MAX(rev), 0) + 1 FROM ws_pages)';
 const SQL_NOW = "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
 
+// Nach der Übernahme ersetzt eine Sicht die alte Tabelle: ältere App-Versionen können sie weder neu
+// anlegen (CREATE TABLE IF NOT EXISTS greift nicht) noch hineinschreiben – ihre Änderungen bleiben
+// ungespeichert auf dem Gerät, bis es aktualisiert ist. Lesen liefert weiter die übernommenen Seiten.
+export function legacyViewSql(workspace) {
+  return `CREATE VIEW IF NOT EXISTS pages AS SELECT id, data, updated_at, rev, base_rev FROM ws_pages WHERE owner = '${String(workspace).replace(/'/g, "''")}'`;
+}
+
 // Spricht dieselbe D1-Datenbank wie der Worker an – immer nur im eigenen Arbeitsbereich (owner)
 export class McpD1Store {
   constructor(mcp, databaseId, workspace, { legacy = false } = {}) {
@@ -173,6 +182,7 @@ export class McpD1Store {
       const cols = new Set((await this.q('PRAGMA table_info(pages)')).map((c) => c.name));
       await this.q(`INSERT OR IGNORE INTO ws_pages (owner, id, data, updated_at, rev, base_rev) SELECT ?, id, data, updated_at, ${cols.has('rev') ? 'rev' : '0'}, ${cols.has('base_rev') ? 'base_rev' : '0'} FROM pages`, [this.workspace]);
       await this.q(`ALTER TABLE pages RENAME TO pages_legacy_${Date.now()}`);
+      await this.q(legacyViewSql(this.workspace));
     }
     return true;
   }

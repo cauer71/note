@@ -59,7 +59,7 @@ node scripts/icons.mjs --preview x.png   # Kontrollbild des Symbols mit iOS-/And
 ```bash
 export CLOUDFLARE_API_TOKEN=…  CLOUDFLARE_ACCOUNT_ID=c72e13538d36f6905581747d2fd5c1fc
 npx wrangler d1 execute notizen --remote --file schema.sql      # nur bei einer neuen Datenbank
-node scripts/seed-sql.mjs && npx wrangler d1 execute notizen --remote --file dist/seed.sql   # Testnotizen (überschreibt nichts)
+node scripts/seed-sql.mjs <arbeitsbereich> && npx wrangler d1 execute notizen --remote --file dist/seed.sql   # Testnotizen (überschreibt nichts)
 npm run deploy
 ```
 

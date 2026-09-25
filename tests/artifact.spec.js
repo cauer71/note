@@ -1,7 +1,7 @@
 // Artifact-Version: Claude (sample) und Cloudflare-Connector (mcp → D1) werden gemockt
 import { test, expect } from '@playwright/test';
 
-function mockClaude({ mcpFail = false, seedRows = null, legacyRows = null } = {}) {
+function mockClaude({ mcpFail = false, seedRows = null, legacyRows = null, otherRows = null } = {}) {
   return `
   (() => {
     const KEY = '__mockd1';
@@ -9,7 +9,7 @@ function mockClaude({ mcpFail = false, seedRows = null, legacyRows = null } = {}
     // D1-Nachbau: { owner: { id: row } } – wie ws_pages (PRIMARY KEY owner, id)
     const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
     const save = (db) => localStorage.setItem(KEY, JSON.stringify(db));
-    ${seedRows ? `if (!localStorage.getItem(KEY)) save({ christian: ${JSON.stringify(seedRows)} });` : ''}
+    ${seedRows || otherRows ? `if (!localStorage.getItem(KEY)) save({ christian: ${JSON.stringify(seedRows || {})}, andere: ${JSON.stringify(otherRows || {})} });` : ''}
     ${legacyRows ? `if (!localStorage.getItem(LEGACY) && !localStorage.getItem(KEY)) localStorage.setItem(LEGACY, JSON.stringify(${JSON.stringify(legacyRows)}));` : ''}
     window.__calls = { sample: [], mcp: [], owners: new Set() };
     const ok = (results) => ({ content: [{ type: 'text', text: JSON.stringify([{ results, success: true, meta: {} }]) }], payload: [{ results, success: true, meta: {} }] });
@@ -24,10 +24,15 @@ function mockClaude({ mcpFail = false, seedRows = null, legacyRows = null } = {}
         const sql = input.sql; const p = input.params || [];
         const db = load();
         const rows = (owner) => { window.__calls.owners.add(owner); return db[owner] || (db[owner] = {}); };
-        if (/^CREATE (TABLE|INDEX)/i.test(sql)) return ok([]);
+        if (/^CREATE TABLE IF NOT EXISTS ws_pages /i.test(sql)) {
+          if (!/PRIMARY KEY \\(owner, id\\)\\)$/.test(sql)) throw { code: 'tool_error', message: 'ws_pages ohne (owner, id)' };
+          return ok([]);
+        }
+        if (/^CREATE INDEX IF NOT EXISTS idx_ws_pages_rev ON ws_pages\\(rev\\)$/i.test(sql)) return ok([]);
+        if (/^CREATE VIEW IF NOT EXISTS pages AS SELECT id, data, updated_at, rev, base_rev FROM ws_pages WHERE owner = 'christian'$/.test(sql)) { localStorage.setItem('__mockview', '1'); return ok([]); }
         if (/^SELECT name FROM sqlite_master/i.test(sql)) return ok(localStorage.getItem(LEGACY) ? [{ name: 'pages' }] : []);
         if (/^PRAGMA table_info\\(pages\\)/i.test(sql)) return ok(['id', 'data', 'updated_at', 'rev', 'base_rev'].map((name) => ({ name })));
-        if (/^INSERT OR IGNORE INTO ws_pages .* FROM pages$/i.test(sql)) {
+        if (/^INSERT OR IGNORE INTO ws_pages \\(owner, id, data, updated_at, rev, base_rev\\) SELECT \\?, id, data, updated_at, rev, base_rev FROM pages$/.test(sql)) {
           const own = rows(p[0]);
           for (const r of Object.values(JSON.parse(localStorage.getItem(LEGACY) || '{}'))) if (!own[r.id]) own[r.id] = r;
           save(db);
@@ -125,6 +130,39 @@ test.describe('Claude-Artifact', () => {
     await expect(page.locator('.page-title')).toHaveText('Aus der alten Tabelle');
     expect(await page.evaluate(() => localStorage.getItem('__mockd1legacy'))).toBeNull();
     expect(await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('__mockd1')).christian))).toEqual(['p-alt']);
+    // Revision bleibt erhalten, die Sicht ersetzt die alte Tabelle
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('__mockd1')).christian['p-alt'].rev)).toBe(9);
+    expect(await page.evaluate(() => localStorage.getItem('__mockview'))).toBe('1');
+  });
+
+  test('Löschen und Konflikte betreffen nur den eigenen Arbeitsbereich', async ({ page }) => {
+    const mk = (id, title, rev) => ({ id, data: JSON.stringify({ id, kind: 'page', title, icon: '📄', blocks: [{ id: 'b-' + id, type: 'p', text: title, indent: 0 }], parentId: null, trashed: 0, order: rev, createdAt: 1, updatedAt: rev }), updated_at: rev, rev });
+    await openArtifact(page, { seedRows: { 'p-a': mk('p-a', 'Meine A', 3), 'p-b': mk('p-b', 'Meine B', 4) }, otherRows: { 'p-a': mk('p-a', 'Fremde A', 1), 'p-b': mk('p-b', 'Fremde B', 2) } }, 'p-b');
+    await expect(page.locator('.page-title')).toHaveText('Meine B');
+    // Endgültig löschen → nur die eigene Zeile verschwindet
+    await page.evaluate(() => window.lernraum.deleteForever('p-a'));
+    await page.waitForFunction(() => !JSON.parse(localStorage.getItem('__mockd1')).christian['p-a']);
+    expect(await page.evaluate(() => JSON.parse(JSON.parse(localStorage.getItem('__mockd1')).andere['p-a'].data).title)).toBe('Fremde A');
+    // Ein anderes Gerät ändert p-b (höhere Revision) → Speichern wird abgelehnt, nachgeladen, zusammengeführt
+    await page.evaluate(() => {
+      const db = JSON.parse(localStorage.getItem('__mockd1'));
+      const r = db.christian['p-b'];
+      const d = JSON.parse(r.data);
+      d.icon = '🚀';
+      r.data = JSON.stringify(d);
+      r.rev = 50;
+      localStorage.setItem('__mockd1', JSON.stringify(db));
+    });
+    await page.locator('.blk-text').first().click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' ergänzt');
+    await page.waitForFunction(() => {
+      const d = JSON.parse(JSON.parse(localStorage.getItem('__mockd1')).christian['p-b'].data);
+      return d.icon === '🚀' && JSON.stringify(d.blocks).includes('ergänzt');
+    }, null, { timeout: 10000 });
+    // Die fremde Zeile mit derselben ID blieb unberührt
+    expect(await page.evaluate(() => JSON.parse(JSON.parse(localStorage.getItem('__mockd1')).andere['p-b'].data).title)).toBe('Fremde B');
+    expect(await page.evaluate(() => [...window.__calls.owners])).toEqual(['christian']);
   });
 
   test('Fällt ohne Connector auf lokalen Speicher zurück', async ({ page }) => {

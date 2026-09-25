@@ -160,7 +160,8 @@ async function handleApi(request, env, url, identity, ws) {
 //   ws_settings  Einstellungen pro Arbeitsbereich
 //   members      Identität (E-Mail bzw. Service-Token) → Arbeitsbereich
 // Ältere Datenbanken (Tabelle pages ohne owner) werden einmalig in den Arbeitsbereich
-// LEGACY_WORKSPACE übernommen; die alte Tabelle bleibt als Sicherung umbenannt erhalten.
+// LEGACY_WORKSPACE übernommen; die alte Tabelle bleibt als Sicherung umbenannt erhalten und
+// eine gleichnamige Sicht verhindert, dass alte App-Versionen sie neu anlegen.
 let schemaReady = null;
 function ensureSchema(env) {
   if (!schemaReady) {
@@ -198,7 +199,12 @@ async function migrateLegacy(env) {
       env.DB.prepare(
         `INSERT OR IGNORE INTO ws_pages (owner, id, data, updated_at, rev, base_rev) SELECT ?1, id, data, updated_at, ${has.has('rev') ? 'rev' : '0'}, ${has.has('base_rev') ? 'base_rev' : '0'} FROM pages`
       ).bind(env.LEGACY_WORKSPACE),
-      env.DB.prepare(`ALTER TABLE pages RENAME TO pages${suffix}`)
+      env.DB.prepare(`ALTER TABLE pages RENAME TO pages${suffix}`),
+      // Sicht statt Tabelle: ältere App-Versionen können „pages“ weder neu anlegen noch beschreiben
+      // (sonst würde die Übernahme erneut laufen und dort Geschriebenes ginge verloren)
+      env.DB.prepare(
+        `CREATE VIEW IF NOT EXISTS pages AS SELECT id, data, updated_at, rev, base_rev FROM ws_pages WHERE owner = '${String(env.LEGACY_WORKSPACE).replace(/'/g, "''")}'`
+      )
     );
   }
   if (names.has('settings')) {
