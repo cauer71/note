@@ -1,26 +1,51 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="fav-bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#7d7aff"/>
-      <stop offset="0.5" stop-color="#5856d6"/>
-      <stop offset="1" stop-color="#af52de"/>
+      <stop offset=".55" stop-color="#5856d6"/>
+      <stop offset="1" stop-color="#a24fe0"/>
     </linearGradient>
-    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff" stop-opacity=".35"/>
-      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+    <linearGradient id="fav-sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".28"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="fav-page" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#eef0ff"/>
+      <stop offset="1" stop-color="#eceeff"/>
     </linearGradient>
+    <filter id="fav-sh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#1d1470" flood-opacity=".32"/>
+    </filter>
+    <filter id="fav-psh" x="-20%" y="-60%" width="140%" height="220%">
+      <feDropShadow dx="0" dy="7" stdDeviation="7" flood-color="#1d1470" flood-opacity=".35"/>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <rect width="512" height="512" rx="112" fill="url(#sheen)"/>
-  <rect x="132" y="104" width="248" height="304" rx="44" fill="url(#page)" opacity=".97"/>
-  <rect x="172" y="168" width="140" height="22" rx="11" fill="#5856d6"/>
-  <rect x="172" y="222" width="168" height="16" rx="8" fill="#c7c6f2"/>
-  <rect x="172" y="262" width="150" height="16" rx="8" fill="#c7c6f2"/>
-  <rect x="172" y="302" width="104" height="16" rx="8" fill="#c7c6f2"/>
-  <path d="M322 382 L402 238 a20 20 0 0 1 35 20 L357 402 Z" fill="#ff9f0a"/>
-  <path d="M322 382 L357 402 L316 420 Z" fill="#1c1c1e"/>
+  <rect width="512" height="512" rx="114" fill="url(#fav-bg)"/>
+  <rect width="512" height="512" rx="114" fill="url(#fav-sheen)"/>
+  <g transform="translate(256 256) scale(1.07) translate(-270 -262)">
+  <g filter="url(#fav-sh)">
+    <rect x="96" y="64" width="320" height="384" rx="54" fill="url(#fav-page)"/>
+  </g>
+  <rect x="140" y="116" width="170" height="30" rx="15" fill="#5856d6"/>
+  <rect x="140" y="180" width="38" height="38" rx="12" fill="#fff" stroke="#c7c6f2" stroke-width="5"/>
+  <rect x="140" y="180" width="38" height="38" rx="12" fill="#34c759"/>
+  <path d="M149 199 L156 206 L168 191" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="30" stroke-dashoffset="0"/>
+  <rect x="196" y="190" width="146" height="18" rx="9" fill="#c7c6f2"/>
+  <rect x="140" y="248" width="202" height="18" rx="9" fill="#c7c6f2"/>
+  <rect x="140" y="290" width="168" height="18" rx="9" fill="#c7c6f2"/>
+  <path d="M142 368 C156 338 172 338 176 360 C180 382 186 390 198 368 C210 346 222 334 234 358 C240 368 248 384 264 362 C280 340 286 342 300 354" fill="none" stroke="#5856d6" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="241" stroke-dashoffset="0"/>
+  <g>
+    <g transform="translate(300 354) rotate(-52)" filter="url(#fav-psh)">
+    <polygon points="0,0 58,-23 58,23" fill="#f6d3a1"/>
+    <polygon points="0,0 20,-8 20,8" fill="#2c2c2e"/>
+    <rect x="57" y="-23" width="142" height="46" fill="#ff9f0a"/>
+    <rect x="57" y="-23" width="142" height="14" fill="#ffb340"/>
+    <rect x="57" y="9" width="142" height="14" fill="#ee8400"/>
+    <rect x="214" y="-23" width="40" height="46" rx="13" fill="#ff6482"/>
+    <rect x="198" y="-23" width="24" height="46" fill="#d1d1d6"/>
+    <rect x="205" y="-23" width="3" height="46" fill="#aeaeb2"/>
+    <rect x="213" y="-23" width="3" height="46" fill="#aeaeb2"/>
+    </g>
+  </g>
+  </g>
 </svg>

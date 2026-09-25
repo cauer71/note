@@ -84,7 +84,7 @@ export class AI {
       { class: 'ai-unavail' },
       h('div', { class: 'ai-unavail-ico' }, svg(I.sparkle)),
       h('h3', {}, 'KI über Claude'),
-      h('p', {}, 'Die KI-Funktionen (Zusammenfassen, Karteikarten, Quiz, Handschrift in Text, Fragen an deine Notizen) laufen über Claude. Öffne dafür Lernraum in der Claude-App – deine Notizen sind dort dieselben, weil beide Versionen deine Cloudflare-Datenbank nutzen.'),
+      h('p', {}, 'Die KI-Funktionen (Zusammenfassen, Karteikarten, Quiz, Handschrift in Text, Fragen an deine Notizen) laufen über Claude. Öffne dafür Notes in der Claude-App – deine Notizen sind dort dieselben, weil beide Versionen deine Cloudflare-Datenbank nutzen.'),
       url ? h('a', { class: 'btn btn-prominent', href: url, target: '_blank', rel: 'noopener' }, 'In Claude öffnen') : h('p', { class: 'muted' }, 'Die Claude-Version findest du in deinen Artifacts auf claude.ai.')
     );
     modal(body, { title: 'KI-Assistent', class: 'modal-sm' });
@@ -736,7 +736,7 @@ export class AI {
       sendBtn.setAttribute('aria-label', 'Stopp');
     }
     const rules =
-      'Du bist Claude, Lernassistent in der Notiz-App „Lernraum“ einer/eines Studierenden. Antworte auf Deutsch (außer es wird anders gewünscht), präzise und gut strukturiert in Markdown (Überschriften ##, Listen, **fett**, Tabellen, Formeln als LaTeX $…$ bzw. $$…$$). ' +
+      'Du bist Claude, Lernassistent in der Notiz-App „Notes“ einer/eines Studierenden. Antworte auf Deutsch (außer es wird anders gewünscht), präzise und gut strukturiert in Markdown (Überschriften ##, Listen, **fett**, Tabellen, Formeln als LaTeX $…$ bzw. $$…$$). ' +
       `Heute ist ${fmtDate(todayISO(), 'long')}. Beziehe dich auf die Notizen; wenn etwas nicht in den Notizen steht, sag das und ergänze Allgemeinwissen deutlich gekennzeichnet.`;
     let context = '';
     let tools;

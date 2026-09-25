@@ -1,5 +1,5 @@
-// Lernraum Service Worker: App-Hülle offline verfügbar (Daten liegen in IndexedDB)
-const CACHE = 'lernraum-v1';
+// Notes Service Worker: App-Hülle offline verfügbar (Daten liegen in IndexedDB)
+const CACHE = 'notes-v2';
 const LIBS = [
   'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js',

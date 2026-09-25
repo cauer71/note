@@ -1,6 +1,6 @@
-# Lernraum
+# Notes
 
-Ein Notion-Klon für Studierende – gebaut für **iPhone und iPad mit Apple Pencil** und gestaltet wie eine native iOS-26-App (Liquid Glass).
+Ein Notion-Klon für Studierende – gebaut für **iPhone und iPad mit Apple Pencil** (und Android) und gestaltet wie eine native iOS-26-App (Liquid Glass). Installierbar als Web-App mit eigenem Symbol, Startanimation und Offline-Start.
 
 - **Gehostet:** https://notes.auer.page (Cloudflare Worker + D1, geschützt mit Cloudflare Access)
 - **Mit KI in Claude:** https://claude.ai/artifact/BeRSov9KCtpwwNt3kwjeLZ (gleiche Daten, KI über Claude)
@@ -16,12 +16,15 @@ Ein Notion-Klon für Studierende – gebaut für **iPhone und iPad mit Apple Pen
 | Lernen | Karteikarten mit Spaced Repetition, Lernsitzungen über alle Stapel, Quiz, Fokus-Timer (Pomodoro) |
 | Heute | Anstehende Abgaben aus allen Datenbanken, fällige Karten, Prüfungs-Countdown, zuletzt bearbeitet |
 | KI (Claude) | Zusammenfassen, Karteikarten und Quiz erzeugen, einfach erklären, Lernplan, Glossar, Prüfungsfragen, Lücken finden, übersetzen, Text verbessern, `/ki` schreibt an der Stelle, **Handschrift → Text/LaTeX**, **Foto von Tafel/Folie → Notizen**, Chat über alle Notizen |
+| Web-App | Installierbar auf iOS/iPadOS („Zum Home-Bildschirm“, Startbilder für alle aktuellen iPhones/iPads) und Android (Installationsfenster mit Screenshots, runde/adaptive Symbole, Kurzbefehle *Neue Notiz*, *Heute*, *Lernen*, *Suchen*), Startanimation |
 | Sonstiges | Seitenbaum mit Ziehen, Favoriten, Papierkorb, Suche (⌘K), Vorlagen, Markdown-Export/-Import, JSON-Sicherung, Hell/Dunkel, Offline-Start (Service Worker + IndexedDB) |
 
 ## Architektur
 
 ```
 src/            App (Vanilla JS, mit esbuild gebündelt)
+  brand.js      App-Symbol und Startanimation (Quelle für alle Icons und Startbilder)
+  install.js    „Als App installieren“ (Android-Installationsfenster, iOS-Hinweis)
   app.js        Hülle: Navigation, Seitenbaum, Speichern/Synchronisieren
   editor.js     Block-Editor (ein contenteditable pro Block)
   database.js   Datenbank-Ansichten
@@ -47,6 +50,8 @@ npm run build          # beide Varianten bauen
 npm run dev            # Worker lokal mit lokaler D1 (http://localhost:8787)
 npx playwright test    # alle Tests
 node scripts/serve.mjs # statischer Testserver (http://localhost:4173/?local=demo)
+node scripts/icons.mjs --screens   # Symbole, Startbilder und Store-Screenshots neu erzeugen (nach npm run build)
+node scripts/icons.mjs --preview x.png   # Kontrollbild des Symbols mit iOS-/Android-Masken
 ```
 
 ## Deployment
@@ -60,7 +65,7 @@ npm run deploy
 
 Bestehende Datenbanken rüstet der Worker (und die Artifact-Version) beim ersten Zugriff selbst nach (`rev`, `base_rev`).
 
-Cloudflare Access schützt `notes.auer.page` (Einmal-PIN per E-Mail, dazu ein Service-Token für Skripte). Nur `/icons/*` ist öffentlich, damit „Zum Home-Bildschirm“ das App-Symbol laden kann. Weitere Personen lassen sich in Zero Trust → Access → Anwendungen → *Lernraum* → Richtlinie *Christian* ergänzen.
+Cloudflare Access schützt `notes.auer.page` (Einmal-PIN per E-Mail, dazu ein Service-Token für Skripte). Nur `/icons/*` ist öffentlich, damit „Zum Home-Bildschirm“ das App-Symbol laden kann. Weitere Personen lassen sich in Zero Trust → Access → Anwendungen → *Notes* → Richtlinie *Christian* ergänzen.
 
 ## Synchronisierung
 
@@ -69,6 +74,11 @@ Cloudflare Access schützt `notes.auer.page` (Einmal-PIN per E-Mail, dazu ein Se
 - Neue Stände von anderen Geräten werden übernommen, ohne den gerade fokussierten Block neu aufzubauen – die iOS-Tastatur bleibt offen.
 - Offline: Alles liegt zusätzlich in IndexedDB; nicht gespeicherte Änderungen werden beim nächsten Start nachgeholt.
 
-## Auf dem iPhone/iPad installieren
+## Als App installieren
 
-In Safari `notes.auer.page` öffnen → Teilen → **Zum Home-Bildschirm**. Die App startet dann im Vollbild und öffnet sich auch offline mit dem zuletzt geladenen Stand.
+- **iPhone/iPad:** In Safari `notes.auer.page` öffnen → Teilen → **Zum Home-Bildschirm**.
+- **Android:** In Chrome `notes.auer.page` öffnen → **Installieren** (Karte auf „Heute“, Einstellungen oder Browsermenü ⋮ → *App installieren*). Langes Drücken auf das Symbol zeigt die Kurzbefehle.
+
+Die App startet dann im Vollbild mit Startanimation und öffnet sich auch offline mit dem zuletzt geladenen Stand.
+
+Das Symbol ist randlos und so groß wie möglich gezeichnet: iOS rundet die Ecken selbst ab, für Android gibt es eine eigene *maskable*-Variante, deren Inhalt vollständig im runden Sicherheitsbereich liegt.

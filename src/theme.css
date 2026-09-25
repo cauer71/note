@@ -1,4 +1,4 @@
-/* Lernraum – Design-Tokens (iOS 26 · Liquid Glass)
+/* Notes – Design-Tokens (iOS 26 · Liquid Glass)
    Der Build dupliziert den DARK-Block für prefers-color-scheme und die Theme-Attribute. */
 :root {
   color-scheme: light;

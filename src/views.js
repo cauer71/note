@@ -10,6 +10,8 @@ import { markdownToBlocks } from './markdown.js';
 import { setFingerDrawing, fingerDrawing } from './drawing.js';
 import { sanitizeBlocks } from './editor.js';
 import { htmlToText } from './inline.js';
+import { installSection, installCard } from './install.js';
+import { APP_NAME } from './brand.js';
 
 function largeTitle(title, sub) {
   return h('div', { class: 'large-head' }, h('h1', { class: 'large-title' }, title), sub ? h('div', { class: 'large-sub' }, sub) : null);
@@ -27,6 +29,8 @@ export function renderToday(app, root) {
   const hour = new Date().getHours();
   const greet = hour < 11 ? 'Guten Morgen' : hour < 17 ? 'Hallo' : 'Guten Abend';
   wrap.appendChild(largeTitle('Heute', `${greet} · ${fmtDate(todayISO(), 'long')}`));
+  const install = installCard(app);
+  if (install) wrap.appendChild(install);
 
   const due = app.dueCardsCount();
   const up = app.upcoming(14, 7).filter((u) => !u.done);
@@ -413,10 +417,10 @@ export function openSettings(app) {
     setFingerDrawing(!penOnly.checked);
     toast(penOnly.checked ? 'Nur der Stift zeichnet – Finger scrollen' : 'Finger zeichnen jetzt auch');
   });
-  const wsName = h('input', { class: 'input input-inline', type: 'text', value: app.workspaceName(), 'aria-label': 'Name des Lernraums' });
+  const wsName = h('input', { class: 'input input-inline', type: 'text', value: app.workspaceName(), 'aria-label': 'Name des Arbeitsbereichs' });
   wsName.value = app.workspaceName();
   wsName.addEventListener('change', () => {
-    storageSet('lr:wsname', wsName.value.trim() || 'Lernraum');
+    storageSet('lr:wsname', wsName.value.trim() || APP_NAME);
     app._renderNav();
   });
   const store = app.store;
@@ -437,18 +441,7 @@ export function openSettings(app) {
       h('label', { class: 'ios-row' }, h('span', { class: 'ios-row-main' }, h('span', { class: 'ios-row-title' }, 'Nur Stift zeichnet'), h('span', { class: 'ios-row-sub' }, 'Mit dem Finger scrollen, mit dem Stift schreiben (Palm Rejection).')), penOnly),
       h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-title' }, 'Stift erkannt'), h('span', { class: 'ios-row-value' }, storageGet('lr:penSeen', false) ? 'Ja' : 'Noch nicht'))
     ),
-    !window.claude && !window.matchMedia('(display-mode: standalone)').matches && /iPhone|iPad|Macintosh/.test(navigator.userAgent)
-      ? h(
-          'div',
-          {},
-          h('div', { class: 'section-label' }, 'Als App installieren'),
-          h(
-            'div',
-            { class: 'ios-list' },
-            h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-ico tile c-blue' }, svg(I.upload)), h('span', { class: 'ios-row-main' }, h('span', { class: 'ios-row-title' }, 'Zum Home-Bildschirm'), h('span', { class: 'ios-row-sub', style: { whiteSpace: 'normal' } }, 'In Safari auf „Teilen“ tippen und „Zum Home-Bildschirm“ wählen. Lernraum startet dann im Vollbild wie eine App und funktioniert auch offline.')))
-          )
-        )
-      : null,
+    installSection(app),
     h('div', { class: 'section-label' }, 'Speicher'),
     h(
       'div',
@@ -472,7 +465,7 @@ export function openSettings(app) {
       { class: 'ios-list' },
       h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-title' }, 'KI-Funktionen'), h('span', { class: 'ios-row-value' }, app.ai.available ? 'Verfügbar' : 'Nur in der Claude-Version')),
       app.ai.available ? h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-title' }, 'Bilder & Handschrift'), h('span', { class: 'ios-row-value' }, app.ai.canImages ? 'Ja' : 'Nein')) : null,
-      !app.ai.available && app.config.artifactUrl ? h('a', { class: 'ios-row ios-row-action', href: app.config.artifactUrl, target: '_blank', rel: 'noopener' }, h('span', { class: 'ios-row-title tint' }, 'Lernraum in Claude öffnen')) : null
+      !app.ai.available && app.config.artifactUrl ? h('a', { class: 'ios-row ios-row-action', href: app.config.artifactUrl, target: '_blank', rel: 'noopener' }, h('span', { class: 'ios-row-title tint' }, APP_NAME + ' in Claude öffnen')) : null
     ),
     h('div', { class: 'section-label' }, 'Tastenkürzel'),
     h(
@@ -493,7 +486,7 @@ export function openSettings(app) {
       ].map(([a, b]) => h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-title' }, a), h('kbd', {}, navigator.platform.includes('Mac') ? b : b.replace(/⌘/g, 'Strg+').replace(/⇧/g, '⇧')))
       )
     ),
-    h('p', { class: 'settings-foot muted' }, 'Lernraum 1.0 · Daten in deiner Cloudflare-D1-Datenbank · KI über Claude')
+    h('p', { class: 'settings-foot muted' }, APP_NAME + ' 1.1 · Daten in deiner Cloudflare-D1-Datenbank · KI über Claude')
   );
   const m = modal(body, { title: 'Einstellungen', class: 'modal-settings' });
 }

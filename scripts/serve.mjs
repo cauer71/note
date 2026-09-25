@@ -5,7 +5,7 @@ import { join, extname } from 'node:path';
 
 const port = Number(process.env.PORT || 4173);
 const root = join(process.cwd(), 'dist/site');
-const types = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.js': 'text/javascript' };
+const types = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webmanifest': 'application/manifest+json', '.js': 'text/javascript' };
 
 createServer((req, res) => {
   const url = new URL(req.url, 'http://x');

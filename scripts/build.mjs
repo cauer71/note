@@ -5,6 +5,7 @@ import { build, transform } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { APP_NAME, BRAND, SPLASH_BG, SPLASH_CSS, SPLASH_JS, splashMarkup, startupImages } from '../src/brand.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
@@ -64,6 +65,12 @@ async function jsBundle() {
 }
 
 const [css, js] = await Promise.all([cssBundle(), jsBundle()]);
+const splashCss = (await transform(SPLASH_CSS, { loader: 'css', minify: true, target: ['safari15', 'chrome100'] })).code;
+const splash = `${splashMarkup()}\n<script>${SPLASH_JS}</script>`;
+const DESCRIPTION = 'Notizen, Aufgaben, Karteikarten und Handschrift fürs Studium – für iPhone, iPad mit Apple Pencil und Android';
+const startupLinks = startupImages()
+  .map((i) => `<link rel="apple-touch-startup-image" media="${i.media}" href="/icons/startup/${i.file}">`)
+  .join('\n');
 
 const cfg = (target) =>
   `window.__LERNRAUM__=${JSON.stringify({ target, d1: D1_ID, artifactUrl: ARTIFACT_URL, hostedUrl: HOSTED_URL, version: pkg.version })};`;
@@ -74,20 +81,26 @@ const hosted = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
-<meta name="theme-color" content="#f2f2f7">
+<meta name="theme-color" content="${SPLASH_BG}">
 <meta name="color-scheme" content="light dark">
+<meta name="application-name" content="${APP_NAME}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Lernraum">
-<meta name="description" content="Lernraum – Notizen, Aufgaben, Karteikarten und Handschrift fürs Studium">
+<meta name="apple-mobile-web-app-title" content="${APP_NAME}">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="${DESCRIPTION}">
 <link rel="manifest" href="/icons/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
-<title>Lernraum</title>
+${startupLinks}
+<title>${APP_NAME}</title>
+<style>${splashCss}</style>
 <style>${css}</style>
 </head>
 <body>
+${splash}
 <div id="app"></div>
 <script>${cfg('hosted')}</script>
 <script>${js}</script>
@@ -96,8 +109,10 @@ const hosted = `<!doctype html>
 `;
 
 // --- Artifact-Version (ohne eigenes <html>/<head>/<body>) -------------------
-const artifact = `<title>Lernraum</title>
+const artifact = `<title>${APP_NAME}</title>
+<style>${splashCss}</style>
 <style>${css}</style>
+${splash}
 <div id="app"></div>
 <script>${cfg('artifact')}</script>
 <script>${js}</script>
@@ -108,29 +123,47 @@ mkdirSync(join(root, 'dist/artifact'), { recursive: true });
 writeFileSync(join(root, 'dist/site/index.html'), hosted);
 writeFileSync(join(root, 'dist/artifact/lernraum.html'), artifact);
 if (existsSync(join(root, 'public'))) cpSync(join(root, 'public'), join(root, 'dist/site'), { recursive: true });
-writeFileSync(
-  join(root, 'dist/site/icons/manifest.webmanifest'),
-  JSON.stringify(
-    {
-      name: 'Lernraum',
-      short_name: 'Lernraum',
-      description: 'Notizen, Aufgaben, Karteikarten und Handschrift fürs Studium',
-      start_url: '/',
-      scope: '/',
-      display: 'standalone',
-      background_color: '#f2f2f7',
-      theme_color: '#5856d6',
-      lang: 'de',
-      icons: [
-        { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-        { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-        { src: '/icons/icon.svg', sizes: 'any', type: 'image/svg+xml' },
-      ],
-    },
-    null,
-    2
-  )
-);
+const shortcut = (name, short_name, url, icon) => ({ name, short_name, url, icons: [{ src: `/icons/shortcut-${icon}.png`, sizes: '96x96', type: 'image/png', purpose: 'any maskable' }] });
+const screen = (file, w, h, form_factor, label) => ({ src: `/icons/screens/${file}.jpg`, sizes: `${w}x${h}`, type: 'image/jpeg', form_factor, label });
+const manifest = {
+  id: '/',
+  name: APP_NAME,
+  short_name: APP_NAME,
+  description: DESCRIPTION,
+  start_url: '/',
+  scope: '/',
+  display: 'standalone',
+  display_override: ['standalone', 'minimal-ui'],
+  orientation: 'any',
+  background_color: SPLASH_BG,
+  theme_color: BRAND,
+  lang: 'de',
+  dir: 'ltr',
+  categories: ['education', 'productivity'],
+  prefer_related_applications: false,
+  launch_handler: { client_mode: ['focus-existing', 'auto'] },
+  icons: [
+    { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: '/icons/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+    { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    { src: '/icons/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+  ],
+  shortcuts: [
+    shortcut('Neue Notiz', 'Neu', '/#neu', 'neu'),
+    shortcut('Heute', 'Heute', '/#heute', 'heute'),
+    shortcut('Lernen', 'Lernen', '/#lernen', 'lernen'),
+    shortcut('Suchen', 'Suchen', '/#suche', 'suche'),
+  ],
+  screenshots: [
+    screen('phone-heute', 1179, 2556, 'narrow', 'Heute: Abgaben, Prüfungen und fällige Karten'),
+    screen('phone-notiz', 1179, 2556, 'narrow', 'Vorlesungsnotiz mit Formeln'),
+    screen('phone-aufgaben', 1179, 2556, 'narrow', 'Aufgaben als Board'),
+    screen('tablet-notiz', 2388, 1668, 'wide', 'Notizen auf dem iPad'),
+    screen('tablet-handschrift', 2388, 1668, 'wide', 'Handschrift mit dem Apple Pencil'),
+  ],
+};
+writeFileSync(join(root, 'dist/site/icons/manifest.webmanifest'), JSON.stringify(manifest, null, 2));
 
 const kb = (s) => (Buffer.byteLength(s) / 1024).toFixed(0) + ' KB';
 console.log(`dist/site/index.html        ${kb(hosted)}`);

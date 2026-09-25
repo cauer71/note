@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Lernraum – iOS 26 Liquid-Glass-Oberfläche
+   Notes – iOS 26 Liquid-Glass-Oberfläche
    ========================================================================== */
 *,
 *::before,
@@ -848,17 +848,16 @@ body.sidebar-closed .sidebar {
 .sb-logo {
   width: 30px;
   height: 30px;
-  border-radius: 9px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-family: var(--font-round);
-  font-weight: 800;
-  font-size: 17px;
-  background: linear-gradient(145deg, #7d7aff 0%, #5856d6 45%, #af52de 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 8px rgba(88, 86, 214, 0.35);
+  border-radius: 8px;
+  overflow: hidden;
+  display: inline-block;
+  box-shadow: 0 3px 8px rgba(88, 86, 214, 0.35);
   flex: none;
+}
+.sb-logo svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .sb-name {
   font-weight: 700;
@@ -5679,4 +5678,75 @@ body.is-narrow .draw-group + .draw-group {
 }
 body.is-narrow .draw-ai {
   margin-left: 0;
+}
+
+/* Als App installieren (Android-Installationsfenster / iOS „Zum Home-Bildschirm“) */
+.install-ico svg,
+.install-card-ico svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ios-row-ico.install-ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  overflow: hidden;
+}
+.install-card {
+  position: relative;
+  margin: 0 16px 18px;
+  padding: 14px 44px 14px 14px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-card);
+}
+.install-card-ico {
+  width: 52px;
+  height: 52px;
+  border-radius: 13px;
+  overflow: hidden;
+  flex: none;
+  box-shadow: 0 4px 12px rgba(88, 86, 214, 0.3);
+}
+.install-card-main {
+  flex: 1;
+  min-width: 0;
+}
+.install-card-title {
+  font-weight: 650;
+  font-size: 17px;
+}
+.install-card-sub {
+  color: var(--label-2);
+  font-size: 14px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+.install-card-btn {
+  margin-top: 10px;
+}
+.install-share {
+  color: var(--tint);
+  display: inline-flex;
+  vertical-align: -3px;
+  font-size: 17px;
+}
+.install-card-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  color: var(--label-2);
+  background: var(--fill-2, rgba(120, 120, 128, 0.16));
+  font-size: 15px;
+  cursor: pointer;
 }

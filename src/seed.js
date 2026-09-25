@@ -85,16 +85,16 @@ export function buildSeed() {
   // --- Kurse -------------------------------------------------------------
   const start = push(
     page('start', {
-      title: 'Willkommen im Lernraum',
+      title: 'Willkommen bei Notes',
       icon: '👋',
       cover: { type: 'gradient', value: 'dusk' },
       favorite: true,
       blocks: [
         ...md(`
-> [!tip] **Lernraum** ist dein Notizbuch fürs Studium – Notizen, Aufgaben, Karteikarten und Handschrift an einem Ort. Diese Seiten sind Testnotizen, du kannst sie ändern oder löschen.
+> [!tip] **Notes** ist dein Notizbuch fürs Studium – Notizen, Aufgaben, Karteikarten und Handschrift an einem Ort. Diese Seiten sind Testnotizen, du kannst sie ändern oder löschen.
 
 ## Erste Schritte
-- [x] Lernraum öffnen
+- [x] Notes öffnen
 - [ ] Tippe **/** in einer leeren Zeile für alle Blöcke (Überschrift, To-do, Formel, Handschrift …)
 - [ ] Schreibe mit dem Apple Pencil in der Seite **Handschrift: Folgen skizziert**
 - [ ] Öffne **Aufgaben & Abgaben** und ziehe eine Karte im Board in eine andere Spalte

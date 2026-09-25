@@ -1,4 +1,4 @@
-// Lernraum – Cloudflare Worker
+// Notes – Cloudflare Worker
 // Liefert die App (statische Assets) aus und stellt eine kleine JSON-API
 // für die Seiten in D1 bereit. Vor dem Worker sitzt Cloudflare Access;
 // zusätzlich prüft der Worker das Access-JWT, sobald ACCESS_AUD gesetzt ist.

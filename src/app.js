@@ -1,4 +1,4 @@
-// Lernraum – App-Hülle: Zustand, Navigation, Seitenansicht, Speichern/Synchronisieren
+// Notes – App-Hülle: Zustand, Navigation, Seitenansicht, Speichern/Synchronisieren
 
 import { h, svg, uid, clone, debounce, toast, isNarrow, isTouchUI, mod, storageGet, storageSet, relTime, normalizeSearch, todayISO, parseISODate, copyText, fmtDate } from './util.js';
 import { I } from './icons.js';
@@ -17,6 +17,9 @@ import { Toolbars } from './toolbar.js';
 import { renderToday, renderLearn, renderTrash, openSearch, openSettings, openTemplates, movePagePicker } from './views.js';
 import { collectAllCards, isDue } from './learn.js';
 import { htmlToText } from './inline.js';
+import { APP_NAME, SPLASH_BG, iconSvg } from './brand.js';
+
+const LOGO = iconSvg({ id: 'logo', rounded: true });
 
 export const COVERS = {
   dusk: 'linear-gradient(135deg, #5856d6 0%, #af52de 55%, #ff2d55 100%)',
@@ -80,7 +83,7 @@ export class App {
     this.root.append(this.sidebar, this.scrim, this.main, this.tabbar, this.banner);
     this.toolbars = new Toolbars(this);
     this.applyLayoutClasses();
-    this.content.appendChild(h('div', { class: 'loading' }, h('span', { class: 'spinner' }), h('span', {}, 'Lernraum wird geladen …')));
+    this.content.appendChild(h('div', { class: 'loading' }, h('span', { class: 'spinner' }), h('span', {}, APP_NAME + ' wird geladen …')));
     window.addEventListener('hashchange', () => this.route());
     window.addEventListener('resize', debounce(() => this.applyLayoutClasses(), 100));
     document.addEventListener('keydown', (e) => this.onGlobalKey(e), true);
@@ -147,6 +150,7 @@ export class App {
           this.cacheKey = cacheKey;
           this._renderNav();
           this.route();
+          if (this.pages.size) window.__splash?.done();
         }
         await store.init();
         this.store = store;
@@ -583,7 +587,7 @@ export class App {
 
   pathLabel(p) {
     const a = this.ancestors(p);
-    return a.length ? a.map(pageTitle).join(' / ') : 'Lernraum';
+    return a.length ? a.map(pageTitle).join(' / ') : APP_NAME;
   }
 
   createPage(extra = {}, opts = {}) {
@@ -888,7 +892,20 @@ export class App {
   }
 
   route(force) {
-    const hash = decodeURIComponent(location.hash.slice(1));
+    let hash = decodeURIComponent(location.hash.slice(1));
+    // Kurzbefehle vom App-Symbol (Android): #neu legt eine Seite an, #suche öffnet die Suche
+    if (hash === 'neu' || hash === 'suche') {
+      if (!this.store || !this.pages.size) return;
+      let target = '';
+      if (hash === 'neu') {
+        const p = this.createPage({}, { navigate: false });
+        this.pendingFocusTitle = true;
+        target = p.id;
+      }
+      history.replaceState(null, '', location.pathname + location.search + (target ? '#' + target : ''));
+      if (hash === 'suche') setTimeout(() => openSearch(this), 0);
+      hash = target;
+    }
     const views = { heute: 'today', lernen: 'learn', papierkorb: 'trash', notizen: 'notes' };
     let view = 'page';
     let id = null;
@@ -1352,7 +1369,7 @@ export class App {
     const head = h(
       'div',
       { class: 'sb-head' },
-      h('div', { class: 'sb-brand' }, h('span', { class: 'sb-logo', 'aria-hidden': 'true' }, 'L'), h('span', { class: asHome ? 'large-title' : 'sb-name' }, asHome ? 'Notizen' : this.workspaceName())),
+      h('div', { class: 'sb-brand' }, h('span', { class: 'sb-logo', 'aria-hidden': 'true', html: LOGO }), h('span', { class: asHome ? 'large-title' : 'sb-name' }, asHome ? 'Notizen' : this.workspaceName())),
       h(
         'div',
         { class: 'sb-head-actions' },
@@ -1421,7 +1438,8 @@ export class App {
   }
 
   workspaceName() {
-    return storageGet('lr:wsname', 'Lernraum');
+    const n = storageGet('lr:wsname', APP_NAME);
+    return n === 'Lernraum' ? APP_NAME : n;
   }
 
   navRow(label, icon, id, onclick, color, badge) {
@@ -1612,7 +1630,8 @@ export function applyTheme(t) {
   else root.removeAttribute('data-app-theme');
   const dark = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', dark ? '#000000' : '#f2f2f7');
+  // Während der Startanimation passt die Statusleiste zur Markenfarbe
+  if (meta) meta.setAttribute('content', root.classList.contains('splashing') ? SPLASH_BG : dark ? '#000000' : '#f2f2f7');
 }
 
 function stripTransient(p) {
