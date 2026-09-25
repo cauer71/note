@@ -24,7 +24,7 @@ body.is-narrow .modal.tour{width:100%;height:calc(100% - env(safe-area-inset-top
 /* Bühne mit Illustration (--acc setzt tour.js je Schritt) */
 .tour-art{position:relative;height:256px;margin:0 16px;overflow:hidden;contain:layout paint;border-radius:28px;box-shadow:inset 0 0 0 .5px var(--sep);background:radial-gradient(130% 100% at 50% 0%,color-mix(in srgb,var(--acc) 18%,transparent),transparent 65%),color-mix(in srgb,var(--acc) 5%,var(--bg-grouped))}
 body.is-narrow .tour-art{height:clamp(196px,32dvh,272px)}
-@media (max-height:560px){.tour-art,body.is-narrow .tour-art{height:160px}}
+
 .tour-canvas{position:absolute;left:50%;top:50%;width:340px;height:232px;transform:translate(-50%,-50%) scale(var(--s,1));font-size:10.5px;line-height:1.25;color:var(--label);--surf:var(--bg-elev);pointer-events:none;-webkit-user-select:none;user-select:none}
 .tour-canvas i{font-style:normal}
 .tour-canvas .emoji{font-size:1em}
@@ -63,6 +63,16 @@ body.is-narrow .tour-foot{padding:6px 16px 12px}
 .tour-next{margin-left:auto;min-width:150px}
 body.is-narrow .tour-next{flex:1;margin-left:0}
 body.is-narrow .tour.is-first .tour-back{display:none}
+
+/* Niedrige Fenster (iPhone quer): Punkte und Knöpfe in einer Zeile, kleinere Bühne */
+@media (max-height:560px){
+  .tour-art,body.is-narrow .tour-art{height:128px}
+  .tour-top{height:44px;padding-top:0}
+  .tour-foot,body.is-narrow .tour-foot{display:flex;align-items:center;gap:8px;padding-top:2px;padding-bottom:max(6px,env(safe-area-inset-bottom,0px))}
+  .tour-dots{flex:1;min-width:0}
+  .tour-btns .btn-lg{height:44px}
+  body.is-narrow .tour-next{flex:none}
+}
 
 /* Schließen */
 .tour-backdrop.is-closing{animation:t-fade-out .22s var(--ease) both}
