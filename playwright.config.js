@@ -29,7 +29,7 @@ export default defineConfig({
   webServer: [
     { command: 'node scripts/serve.mjs', port: PORT, env: { PORT: String(PORT) }, reuseExistingServer: true },
     {
-      command: `rm -rf .wrangler/test-state && npx wrangler d1 execute notizen --local --file schema.sql --persist-to .wrangler/test-state >/dev/null && npx wrangler dev --local --port ${API_PORT} --persist-to .wrangler/test-state --var ACCESS_AUD: --var DEV_NO_AUTH:1`,
+      command: `rm -rf .wrangler/test-state && npx wrangler d1 execute notizen --local --file schema.sql --persist-to .wrangler/test-state >/dev/null && npx wrangler d1 execute notizen --local --file tests/fixtures/legacy.sql --persist-to .wrangler/test-state >/dev/null && npx wrangler dev --local --port ${API_PORT} --persist-to .wrangler/test-state --var ACCESS_AUD: --var DEV_NO_AUTH:1 --var LEGACY_WORKSPACE:legacy-ws`,
       port: API_PORT,
       reuseExistingServer: true,
       timeout: 120000,

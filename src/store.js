@@ -22,20 +22,40 @@ function chunks(arr, n) {
 }
 
 export class ApiStore {
-  constructor() {
+  // expected: Arbeitsbereich, den das Gerät zuletzt hatte (für den Schnellstart aus dem Zwischenspeicher)
+  constructor(expected = '') {
     this.kind = 'cloudflare';
     this.label = 'Cloudflare D1';
+    this.workspace = expected || '';
+    this.cacheKey = expected ? 'api:' + expected : 'api';
+    this.ready = false;
+  }
+  // Bis init() fertig ist, schickt jede Anfrage den erwarteten Arbeitsbereich mit – der Worker
+  // lehnt ab (409), falls inzwischen jemand anderes angemeldet ist.
+  headers(extra = {}) {
+    return this.workspace ? { ...extra, 'x-notes-workspace': encodeURIComponent(this.workspace) } : extra;
   }
   async init() {
-    const r = await fetch('/api/health', { credentials: 'same-origin', cache: 'no-store' });
+    const r = await fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' });
     if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Nicht angemeldet'), { code: 'auth' });
     if (!r.ok) throw new Error('API nicht erreichbar');
     const j = await r.json();
     this.user = j.user;
+    this.workspace = j.workspace || '';
+    this.legacy = !!j.legacy;
+    this.cacheKey = 'api:' + this.workspace;
+    this.ready = true;
     return true;
   }
+  async check(r) {
+    if (r.status === 409) {
+      const j = await r.json().catch(() => ({}));
+      if (j.code === 'workspace') throw Object.assign(new Error('Anderer Arbeitsbereich angemeldet'), { code: 'workspace' });
+    }
+    return r;
+  }
   async loadAll(since = 0) {
-    const r = await fetch('/api/pages?since=' + since, { credentials: 'same-origin', cache: 'no-store' });
+    const r = await this.check(await fetch('/api/pages?since=' + since, { credentials: 'same-origin', cache: 'no-store', headers: this.headers() }));
     if (!r.ok) throw Object.assign(new Error('Laden fehlgeschlagen (' + r.status + ')'), { code: r.status === 401 ? 'auth' : 'net' });
     const j = await r.json();
     return j.pages.map((row) => ({ id: row.id, updatedAt: Number(row.updated_at), rev: Number(row.rev) || 0, data: row.data }));
@@ -62,13 +82,15 @@ export class ApiStore {
     if (cur.length) parts.push(cur);
     for (const part of parts) {
       const body = JSON.stringify({ pages: part.map((p) => ({ id: p.id, data: p.data, updated_at: p.updatedAt, base_rev: p.baseRev || 0 })) });
-      const r = await fetch('/api/pages', {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: { 'content-type': 'application/json' },
-        body,
-        keepalive: encoder.encode(body).length < 60000,
-      });
+      const r = await this.check(
+        await fetch('/api/pages', {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: this.headers({ 'content-type': 'application/json' }),
+          body,
+          keepalive: encoder.encode(body).length < 60000,
+        })
+      );
       if (!r.ok) {
         let msg = 'Speichern fehlgeschlagen (' + r.status + ')';
         try {
@@ -88,7 +110,7 @@ export class ApiStore {
   async fetchPages(ids) {
     const out = [];
     for (const part of chunks(ids, 90)) {
-      const r = await fetch('/api/pages?ids=' + part.map(encodeURIComponent).join(','), { credentials: 'same-origin', cache: 'no-store' });
+      const r = await this.check(await fetch('/api/pages?ids=' + part.map(encodeURIComponent).join(','), { credentials: 'same-origin', cache: 'no-store', headers: this.headers() }));
       if (!r.ok) throw new Error('Laden fehlgeschlagen (' + r.status + ')');
       const j = await r.json();
       out.push(...j.pages.map((row) => ({ id: row.id, updatedAt: Number(row.updated_at), rev: Number(row.rev) || 0, data: row.data })));
@@ -97,27 +119,32 @@ export class ApiStore {
   }
   async deletePages(ids) {
     for (const part of chunks(ids, 90)) {
-      const r = await fetch('/api/pages', {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ids: part }),
-      });
+      const r = await this.check(
+        await fetch('/api/pages', {
+          method: 'DELETE',
+          credentials: 'same-origin',
+          headers: this.headers({ 'content-type': 'application/json' }),
+          body: JSON.stringify({ ids: part }),
+        })
+      );
       if (!r.ok) throw new Error('Löschen fehlgeschlagen');
     }
   }
 }
 
 // Revision fortlaufend in D1 vergeben; Serverzeit (ms) zum Kappen vorgehender Geräteuhren
-const SQL_REV = '(SELECT COALESCE(MAX(rev), 0) + 1 FROM pages)';
+const SQL_REV = '(SELECT COALESCE(MAX(rev), 0) + 1 FROM ws_pages)';
 const SQL_NOW = "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
 
+// Spricht dieselbe D1-Datenbank wie der Worker an – immer nur im eigenen Arbeitsbereich (owner)
 export class McpD1Store {
-  constructor(mcp, databaseId) {
+  constructor(mcp, databaseId, workspace, { legacy = false } = {}) {
     this.kind = 'cloudflare';
     this.label = 'Cloudflare D1 (Connector)';
     this.mcp = mcp;
     this.databaseId = databaseId;
+    this.workspace = workspace;
+    this.legacy = legacy;
   }
   async q(sql, params) {
     const input = { database_id: this.databaseId, sql };
@@ -137,24 +164,27 @@ export class McpD1Store {
     return (first && first.results) || [];
   }
   async init() {
-    await this.q('CREATE TABLE IF NOT EXISTS pages (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL, rev INTEGER NOT NULL DEFAULT 0, base_rev INTEGER NOT NULL DEFAULT 0)');
-    // ältere Datenbanken nachrüsten
-    const cols = new Set((await this.q('PRAGMA table_info(pages)')).map((c) => c.name));
-    if (!cols.has('rev')) await this.q('ALTER TABLE pages ADD COLUMN rev INTEGER NOT NULL DEFAULT 0');
-    if (!cols.has('base_rev')) await this.q('ALTER TABLE pages ADD COLUMN base_rev INTEGER NOT NULL DEFAULT 0');
-    if (!cols.has('rev')) await this.q('CREATE INDEX IF NOT EXISTS idx_pages_rev ON pages(rev)');
+    if (!this.workspace) throw new Error('Kein Arbeitsbereich konfiguriert');
+    await this.q('CREATE TABLE IF NOT EXISTS ws_pages (owner TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL, rev INTEGER NOT NULL DEFAULT 0, base_rev INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (owner, id))');
+    await this.q('CREATE INDEX IF NOT EXISTS idx_ws_pages_rev ON ws_pages(rev)');
+    // Datenbank aus der Zeit vor den Arbeitsbereichen (Tabelle pages): einmalig übernehmen wie der Worker
+    if (this.legacy && (await this.q("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pages'")).length) {
+      const cols = new Set((await this.q('PRAGMA table_info(pages)')).map((c) => c.name));
+      await this.q(`INSERT OR IGNORE INTO ws_pages (owner, id, data, updated_at, rev, base_rev) SELECT ?, id, data, updated_at, ${cols.has('rev') ? 'rev' : '0'}, ${cols.has('base_rev') ? 'base_rev' : '0'} FROM pages`, [this.workspace]);
+      await this.q(`ALTER TABLE pages RENAME TO pages_legacy_${Date.now()}`);
+    }
     return true;
   }
   async loadAll(since = 0) {
     // 1) nur IDs, Revisionen und Größe – 2) geänderte Seiten paketweise (Antworten klein halten)
-    const meta = await this.q('SELECT id, updated_at, rev, length(data) AS size FROM pages');
+    const meta = await this.q('SELECT id, updated_at, rev, length(data) AS size FROM ws_pages WHERE owner = ?', [this.workspace]);
     const out = new Map(meta.map((r) => [r.id, { id: r.id, updatedAt: Number(r.updated_at), rev: Number(r.rev) || 0, data: null }]));
     const changed = meta.filter((r) => (Number(r.rev) || 0) > since);
     let batch = [];
     let size = 0;
     const flush = async () => {
       if (!batch.length) return;
-      const rows = await this.q(`SELECT id, updated_at, rev, data FROM pages WHERE id IN (${batch.map(() => '?').join(', ')})`, batch);
+      const rows = await this.q(`SELECT id, updated_at, rev, data FROM ws_pages WHERE owner = ? AND id IN (${batch.map(() => '?').join(', ')})`, [this.workspace, ...batch]);
       for (const r of rows) out.set(r.id, { id: r.id, updatedAt: Number(r.updated_at), rev: Number(r.rev) || 0, data: r.data });
       batch = [];
       size = 0;
@@ -176,7 +206,8 @@ export class McpD1Store {
     let cur = [];
     let size = 0;
     for (const it of items) {
-      if (cur.length && (size + it.data.length > 600000 || cur.length >= 20)) {
+      // 5 Parameter pro Seite, D1 erlaubt höchstens 100
+      if (cur.length && (size + it.data.length > 600000 || cur.length >= 19)) {
         batches.push(cur);
         cur = [];
         size = 0;
@@ -187,11 +218,11 @@ export class McpD1Store {
     if (cur.length) batches.push(cur);
     for (const b of batches) {
       // Optimistische Sperre wie im Worker: nur schreiben, wenn rev noch der Basis entspricht
-      const values = b.map(() => `(?, ?, MIN(CAST(? AS INTEGER), ${SQL_NOW} + 60000), ${SQL_REV}, CAST(? AS INTEGER))`).join(', ');
+      const values = b.map(() => `(?, ?, ?, MIN(CAST(? AS INTEGER), ${SQL_NOW} + 60000), ${SQL_REV}, CAST(? AS INTEGER))`).join(', ');
       const params = [];
-      for (const x of b) params.push(x.id, x.data, x.updatedAt, x.baseRev || 0);
+      for (const x of b) params.push(this.workspace, x.id, x.data, x.updatedAt, x.baseRev || 0);
       const rows = await this.q(
-        `INSERT INTO pages (id, data, updated_at, rev, base_rev) VALUES ${values} ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev, base_rev = excluded.base_rev WHERE pages.rev = excluded.base_rev RETURNING id, rev`,
+        `INSERT INTO ws_pages (owner, id, data, updated_at, rev, base_rev) VALUES ${values} ON CONFLICT(owner, id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev, base_rev = excluded.base_rev WHERE ws_pages.rev = excluded.base_rev RETURNING id, rev`,
         params
       );
       for (const r of rows) saved[r.id] = Number(r.rev);
@@ -202,14 +233,14 @@ export class McpD1Store {
   async fetchPages(ids) {
     const out = [];
     for (const part of chunks(ids, 40)) {
-      const rows = await this.q(`SELECT id, updated_at, rev, data FROM pages WHERE id IN (${part.map(() => '?').join(', ')})`, part);
+      const rows = await this.q(`SELECT id, updated_at, rev, data FROM ws_pages WHERE owner = ? AND id IN (${part.map(() => '?').join(', ')})`, [this.workspace, ...part]);
       out.push(...rows.map((r) => ({ id: r.id, updatedAt: Number(r.updated_at), rev: Number(r.rev) || 0, data: r.data })));
     }
     return out;
   }
   async deletePages(ids) {
     for (const part of chunks(ids, 90)) {
-      await this.q(`DELETE FROM pages WHERE id IN (${part.map(() => '?').join(', ')})`, part);
+      await this.q(`DELETE FROM ws_pages WHERE owner = ? AND id IN (${part.map(() => '?').join(', ')})`, [this.workspace, ...part]);
     }
   }
 }
@@ -261,6 +292,25 @@ export async function kvSet(key, value) {
     } catch {
       /* voll oder gesperrt */
     }
+  }
+}
+
+export async function kvDel(key) {
+  try {
+    const db = await idb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    /* kein IndexedDB */
+  }
+  try {
+    localStorage.removeItem('lr:' + key);
+  } catch {
+    /* gesperrt */
   }
 }
 

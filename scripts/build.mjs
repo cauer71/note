@@ -11,6 +11,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const D1_ID = '7f5ba627-dfd3-4ba6-a7cb-e8afcf315eb1';
 const HOSTED_URL = 'https://notes.auer.page';
+// Arbeitsbereich der Claude-Version = LEGACY_WORKSPACE des Workers (eine Quelle: wrangler.jsonc)
+const WORKSPACE = (readOptional(join(root, 'wrangler.jsonc')).match(/"LEGACY_WORKSPACE"\s*:\s*"([^"]+)"/) || [])[1] || '';
 const ARTIFACT_URL = process.env.ARTIFACT_URL || readOptional(join(root, 'artifact-url.txt')).trim();
 
 function readOptional(p) {
@@ -73,7 +75,7 @@ const startupLinks = startupImages()
   .join('\n');
 
 const cfg = (target) =>
-  `window.__LERNRAUM__=${JSON.stringify({ target, d1: D1_ID, artifactUrl: ARTIFACT_URL, hostedUrl: HOSTED_URL, version: pkg.version })};`;
+  `window.__LERNRAUM__=${JSON.stringify({ target, d1: D1_ID, workspace: target === 'artifact' ? WORKSPACE : '', artifactUrl: ARTIFACT_URL, hostedUrl: HOSTED_URL, version: pkg.version })};`;
 
 // --- Gehostete Version ------------------------------------------------------
 const hosted = `<!doctype html>

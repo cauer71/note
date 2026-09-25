@@ -10,7 +10,7 @@ import { blocksToMarkdown, blocksToPlain, markdownToBlocks } from './markdown.js
 import { renderDatabasePage, renderRowProps } from './database.js';
 import { updateTocs, renderMathIn } from './blocks.js';
 import { redrawAllDrawings } from './drawing.js';
-import { kvGet, kvSet, LocalStore, pageBytes, MAX_PAGE_BYTES } from './store.js';
+import { kvGet, kvSet, kvDel, LocalStore, pageBytes, MAX_PAGE_BYTES } from './store.js';
 import { buildSeed } from './seed.js';
 import { AI } from './ai.js';
 import { Toolbars } from './toolbar.js';
@@ -136,43 +136,36 @@ export class App {
         store = await make();
         if (!store) continue;
         this.setSync('syncing');
-        // Schnellstart aus Cache
+        this.storeReady = false;
+        // Schnellstart aus Cache (Arbeitsbereich vom letzten Mal – bestätigt erst init())
         const cacheKey = 'cache:' + (store.cacheKey || store.kind);
         const cached = await kvGet(cacheKey);
+        this.store = store;
+        this.cacheKey = cacheKey;
         if (cached && cached.pages && !this.pages.size) {
-          for (const p of cached.pages) this.pages.set(p.id, p);
-          this.knownRemote = new Set(cached.known || []);
-          this.lastSync = cached.v === 4 && Number.isFinite(cached.lastSync) ? cached.lastSync : -1;
-          (cached.dirty || []).forEach((id) => this.dirty.add(id));
-          for (const [id, json] of Object.entries(cached.base || {})) this.base.set(id, json);
-          for (const [id, r] of Object.entries(cached.baseRev || {})) this.baseRev.set(id, Number(r) || 0);
-          this.store = store;
-          this.cacheKey = cacheKey;
+          this.loadCache(cached);
           this._renderNav();
           this.route();
           if (this.pages.size) window.__splash?.done();
         }
-        await store.init();
-        this.store = store;
-        this.cacheKey = cacheKey;
-        await this.sync(true);
+        await this.ensureStoreReady();
         if (!this.pages.size && store.kind === 'local') this.seed();
-        else if (!this.pages.size && !storageGet('lr:seeded:' + cacheKey, false)) this.seed();
-        storageSet('lr:seeded:' + cacheKey, true);
+        else if (!this.pages.size && !storageGet('lr:seeded:' + this.cacheKey, false)) this.seed();
+        storageSet('lr:seeded:' + this.cacheKey, true);
         this.setSync('saved');
         this.showBanner(store.bannerText || null);
         if (this.dirty.size) this.save();
         return;
       } catch (err) {
         errors.push(err);
-        if (this.pages.size && store && this.store === store) {
-          // Offline mit Cache
+        if (this.pages.size && store && this.store === store && err.code !== 'workspace') {
+          // Offline mit Cache – gespeichert wird, sobald der Arbeitsbereich bestätigt ist (ensureStoreReady)
           this.setSync('offline');
           this.showBanner(offlineText(err), { retry: true });
           return;
         }
         this.store = null;
-        this.pages.clear();
+        this.resetData();
       }
     }
     // Letzter Ausweg: lokal
@@ -180,10 +173,108 @@ export class App {
     await local.init();
     this.store = local;
     this.cacheKey = 'cache:fallback';
+    this.storeReady = true;
     await this.sync(true);
     if (!this.pages.size) this.seed();
     this.setSync('saved');
     this.showBanner('Nur in diesem Browser gespeichert. ' + (errors.length ? offlineText(errors[errors.length - 1]) : ''), { retry: errors.length > 0 });
+  }
+
+  // Speicher anmelden und Arbeitsbereich bestätigen; erst danach wird gespeichert oder abgeglichen.
+  // Ist inzwischen jemand anderes angemeldet, kommt dessen Zwischenspeicher zum Zug.
+  ensureStoreReady() {
+    if (this.storeReady) return Promise.resolve();
+    if (!this._readying) {
+      const store = this.store;
+      this._readying = (async () => {
+        await store.init();
+        if (store !== this.store) return;
+        const key = 'cache:' + (store.cacheKey || store.kind);
+        if (key !== this.cacheKey) await this.switchCache(key, store);
+        if (store.workspace) storageSet('lr:lastWorkspace', store.workspace);
+        this.storeReady = true;
+        await this.sync(true);
+      })().finally(() => (this._readying = null));
+    }
+    return this._readying;
+  }
+
+  async switchCache(key, store) {
+    const LEGACY = 'cache:api'; // gemeinsamer Zwischenspeicher aus der Zeit vor den Arbeitsbereichen
+    const from = this.cacheKey;
+    const loaded = this.pages.size > 0;
+    let adoptLegacy = false;
+    if (loaded && from === LEGACY && store.legacy) {
+      // gehört dem bisherigen (einzigen) Arbeitsbereich → übernehmen, inkl. nicht gespeicherter Änderungen
+      adoptLegacy = true;
+    } else {
+      if (loaded) this.resetData();
+      const cached = await kvGet(key);
+      if (cached && cached.pages) this.loadCache(cached);
+      else if (store.legacy) {
+        const old = await kvGet(LEGACY);
+        if (old && old.pages) {
+          this.loadCache(old);
+          adoptLegacy = true;
+        }
+      }
+    }
+    this.cacheKey = key;
+    if (adoptLegacy) {
+      await this.writeCache();
+      await kvDel(LEGACY);
+    } else if (from === LEGACY) {
+      // Fremde Notizen nicht auf dem Gerät liegen lassen – außer es gibt dort noch Ungespeichertes
+      const old = await kvGet(LEGACY);
+      if (old && !(old.dirty || []).length) await kvDel(LEGACY);
+    }
+    if (loaded || this.pages.size) {
+      this._renderNav();
+      this.route(true);
+    }
+  }
+
+  loadCache(cached) {
+    for (const p of cached.pages) this.pages.set(p.id, p);
+    this.knownRemote = new Set(cached.known || []);
+    this.lastSync = cached.v === 4 && Number.isFinite(cached.lastSync) ? cached.lastSync : -1;
+    (cached.dirty || []).forEach((id) => this.dirty.add(id));
+    for (const [id, json] of Object.entries(cached.base || {})) this.base.set(id, json);
+    for (const [id, r] of Object.entries(cached.baseRev || {})) this.baseRev.set(id, Number(r) || 0);
+  }
+
+  // Alles vergessen, was zu einem anderen Arbeitsbereich gehört
+  resetData() {
+    this.pages.clear();
+    this.dirty.clear();
+    this.knownRemote = new Set();
+    this.base.clear();
+    this.baseRev.clear();
+    this.savedAt.clear();
+    this.tooLarge.clear();
+    this.lastSync = -1;
+  }
+
+  // Während der Sitzung hat sich jemand anderes angemeldet (z. B. in einem anderen Tab)
+  async onWorkspaceChanged() {
+    if (this._wsReload) return;
+    this._wsReload = true;
+    this.saveSoon.cancel();
+    await this.writeCache();
+    location.reload();
+  }
+
+  // Abmelden (Cloudflare Access) – vorher speichern und die Notizen von diesem Gerät entfernen
+  async logout() {
+    this.flushSave();
+    for (let i = 0; i < 60 && (this.saving || this.dirty.size || this.uploading.size); i++) await new Promise((r) => setTimeout(r, 100));
+    if (this.dirty.size && !(await confirmDialog({ title: 'Nicht alles gespeichert', text: 'Einige Änderungen sind noch nicht gespeichert und gehen beim Abmelden verloren.', okLabel: 'Trotzdem abmelden', danger: true }))) return;
+    this.saveSoon.cancel();
+    this.cacheSoon.cancel();
+    if (this.cacheKey) await kvDel(this.cacheKey);
+    storageSet('lr:lastWorkspace', '');
+    this._wsReload = true;
+    location.href = '/cdn-cgi/access/logout';
   }
 
   showBanner(text, opts = {}) {
@@ -258,9 +349,26 @@ export class App {
   }
 
   async save() {
-    if (!this.store || this.saving) {
+    if (!this.store || this.saving || this._wsReload) {
       if (this.saving) this.saveAgain = true;
       return;
+    }
+    if (!this.storeReady) {
+      // z. B. offline gestartet: erst anmelden und Arbeitsbereich bestätigen
+      try {
+        await this.ensureStoreReady();
+      } catch (err) {
+        if (err.code === 'workspace') return this.onWorkspaceChanged();
+        this.setSync('offline', err);
+        clearTimeout(this.retryTimer);
+        this.retryTimer = setTimeout(() => this.save(), this.retryDelay);
+        this.retryDelay = Math.min(120000, this.retryDelay * 2);
+        return;
+      }
+      if (this.saving) {
+        this.saveAgain = true;
+        return;
+      }
     }
     const ids = [...this.dirty].filter((id) => !this.tooLarge.has(id));
     if (!ids.length) {
@@ -335,6 +443,10 @@ export class App {
       this.cacheSoon();
     } catch (err) {
       sent.forEach((id) => this.dirty.add(id));
+      if (err.code === 'workspace') {
+        this.onWorkspaceChanged();
+        return;
+      }
       this.setSync('offline', err);
       this.cacheSoon();
       clearTimeout(this.retryTimer);
@@ -436,7 +548,12 @@ export class App {
   }
 
   async sync(initial = false) {
-    if (!this.store || this.syncing) return;
+    if (!this.store || this.syncing || this._wsReload) return;
+    if (!this.storeReady) {
+      // offline gestartet: jetzt anmelden (gleicht danach selbst ab)
+      if (!initial) this.ensureStoreReady().catch((err) => (err.code === 'workspace' ? this.onWorkspaceChanged() : this.setSync('offline', err)));
+      return;
+    }
     if (!initial && Date.now() - (this.lastSyncAt || 0) < 8000) return;
     this.syncing = true;
     const startedAt = Date.now();
@@ -492,7 +609,8 @@ export class App {
       else this.setSync('saved');
     } catch (err) {
       if (initial) throw err;
-      this.setSync('offline', err);
+      if (err.code === 'workspace') this.onWorkspaceChanged();
+      else this.setSync('offline', err);
     } finally {
       this.syncing = false;
     }

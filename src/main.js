@@ -6,7 +6,7 @@ import { storageGet } from './util.js';
 import { renderMath, highlight } from './blocks.js';
 import { onInstallChange } from './install.js';
 
-const config = Object.assign({ target: 'hosted', d1: '', artifactUrl: '', hostedUrl: '' }, window.__LERNRAUM__ || {});
+const config = Object.assign({ target: 'hosted', d1: '', workspace: '', artifactUrl: '', hostedUrl: '' }, window.__LERNRAUM__ || {});
 const params = new URLSearchParams(location.search);
 
 applyTheme(storageGet('lr:theme', 'system'));
@@ -53,7 +53,8 @@ if (params.has('local') || config.localOnly) {
     if (!inClaude || !config.d1) return null;
     const mcp = await window.claude.use('mcp');
     if (!mcp) return null;
-    const s = new McpD1Store(mcp, config.d1);
+    // Die Claude-Version nutzt den Arbeitsbereich, dem die Daten aus der Zeit vor den Arbeitsbereichen gehören
+    const s = new McpD1Store(mcp, config.d1, config.workspace, { legacy: true });
     s.cacheKey = 'mcp-d1';
     return s;
   });
@@ -63,11 +64,8 @@ if (params.has('local') || config.localOnly) {
     return s;
   });
 } else {
-  stores.push(async () => {
-    const s = new ApiStore();
-    s.cacheKey = 'api';
-    return s;
-  });
+  // Zuletzt angemeldeter Arbeitsbereich → dessen Zwischenspeicher für den Schnellstart
+  stores.push(async () => new ApiStore(storageGet('lr:lastWorkspace', '')));
 }
 
 // Startanimation ausblenden, sobald Inhalte da sind (siehe src/brand.js)

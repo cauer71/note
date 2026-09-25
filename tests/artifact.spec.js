@@ -1,47 +1,63 @@
 // Artifact-Version: Claude (sample) und Cloudflare-Connector (mcp → D1) werden gemockt
 import { test, expect } from '@playwright/test';
 
-function mockClaude({ mcpFail = false, seedRows = null } = {}) {
+function mockClaude({ mcpFail = false, seedRows = null, legacyRows = null } = {}) {
   return `
   (() => {
     const KEY = '__mockd1';
+    const LEGACY = '__mockd1legacy';
+    // D1-Nachbau: { owner: { id: row } } – wie ws_pages (PRIMARY KEY owner, id)
     const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
     const save = (db) => localStorage.setItem(KEY, JSON.stringify(db));
-    ${seedRows ? `if (!localStorage.getItem(KEY)) save(${JSON.stringify(seedRows)});` : ''}
-    window.__calls = { sample: [], mcp: [] };
+    ${seedRows ? `if (!localStorage.getItem(KEY)) save({ christian: ${JSON.stringify(seedRows)} });` : ''}
+    ${legacyRows ? `if (!localStorage.getItem(LEGACY) && !localStorage.getItem(KEY)) localStorage.setItem(LEGACY, JSON.stringify(${JSON.stringify(legacyRows)}));` : ''}
+    window.__calls = { sample: [], mcp: [], owners: new Set() };
     const ok = (results) => ({ content: [{ type: 'text', text: JSON.stringify([{ results, success: true, meta: {} }]) }], payload: [{ results, success: true, meta: {} }] });
     const mcp = {
       async callTool(server, tool, input) {
-        window.__calls.mcp.push({ server, tool, sql: input.sql });
+        window.__calls.mcp.push({ server, tool, sql: input.sql, params: input.params || [] });
         await new Promise((r) => setTimeout(r, 15));
         if (${mcpFail}) throw { code: 'server_not_connected', message: 'nicht verbunden', server };
         if (server !== 'Cloudflare Developer Platform' || tool !== 'd1_database_query') throw { code: 'not_in_manifest' };
         if (!input.database_id) throw { code: 'tool_error', message: 'database_id fehlt' };
+        if ((input.params || []).some((x) => typeof x !== 'string')) throw { code: 'tool_error', message: 'params müssen Texte sein' };
         const sql = input.sql; const p = input.params || [];
         const db = load();
-        if (/^CREATE TABLE/i.test(sql)) return ok([]);
-        if (/^PRAGMA table_info/i.test(sql)) return ok(['id', 'data', 'updated_at', 'rev', 'base_rev'].map((name) => ({ name })));
-        if (/^SELECT id, updated_at, rev, length\\(data\\) AS size FROM pages$/i.test(sql)) {
-          return ok(Object.values(db).map((r) => ({ id: r.id, updated_at: r.updated_at, rev: r.rev || 0, size: r.data.length })));
+        const rows = (owner) => { window.__calls.owners.add(owner); return db[owner] || (db[owner] = {}); };
+        if (/^CREATE (TABLE|INDEX)/i.test(sql)) return ok([]);
+        if (/^SELECT name FROM sqlite_master/i.test(sql)) return ok(localStorage.getItem(LEGACY) ? [{ name: 'pages' }] : []);
+        if (/^PRAGMA table_info\\(pages\\)/i.test(sql)) return ok(['id', 'data', 'updated_at', 'rev', 'base_rev'].map((name) => ({ name })));
+        if (/^INSERT OR IGNORE INTO ws_pages .* FROM pages$/i.test(sql)) {
+          const own = rows(p[0]);
+          for (const r of Object.values(JSON.parse(localStorage.getItem(LEGACY) || '{}'))) if (!own[r.id]) own[r.id] = r;
+          save(db);
+          return ok([]);
         }
-        if (/^SELECT id, updated_at, rev, data FROM pages WHERE id IN/i.test(sql)) {
+        if (/^ALTER TABLE pages RENAME TO pages_legacy_\\d+$/i.test(sql)) { localStorage.removeItem(LEGACY); return ok([]); }
+        if (/^SELECT id, updated_at, rev, length\\(data\\) AS size FROM ws_pages WHERE owner = \\?$/i.test(sql)) {
+          return ok(Object.values(rows(p[0])).map((r) => ({ id: r.id, updated_at: r.updated_at, rev: r.rev || 0, size: r.data.length })));
+        }
+        if (/^SELECT id, updated_at, rev, data FROM ws_pages WHERE owner = \\? AND id IN/i.test(sql)) {
           window.__calls.batches = (window.__calls.batches || 0) + 1;
-          return ok(p.map((id) => db[id]).filter(Boolean).map((r) => ({ id: r.id, updated_at: r.updated_at, rev: r.rev || 0, data: r.data })));
+          const own = rows(p[0]);
+          return ok(p.slice(1).map((id) => own[id]).filter(Boolean).map((r) => ({ id: r.id, updated_at: r.updated_at, rev: r.rev || 0, data: r.data })));
         }
-        if (/^INSERT INTO pages/i.test(sql)) {
-          if (!/RETURNING id, rev$/.test(sql) || !/WHERE pages\.rev = excluded\.base_rev/.test(sql)) throw { code: 'tool_error', message: 'Sperre fehlt' };
-          let rev = Math.max(0, ...Object.values(db).map((r) => r.rev || 0)) + 1;
+        if (/^INSERT INTO ws_pages/i.test(sql)) {
+          if (!/RETURNING id, rev$/.test(sql) || !/ON CONFLICT\\(owner, id\\)/.test(sql) || !/WHERE ws_pages\\.rev = excluded\\.base_rev/.test(sql)) throw { code: 'tool_error', message: 'Sperre fehlt' };
+          if (p.length > 100) throw { code: 'tool_error', message: 'zu viele Parameter' };
+          let rev = Math.max(0, ...Object.values(db).flatMap((o) => Object.values(o)).map((r) => r.rev || 0)) + 1;
           const out = [];
-          for (let i = 0; i < p.length; i += 4) {
-            const cur = db[p[i]];
-            if (cur && (cur.rev || 0) !== Number(p[i + 3])) continue;
-            db[p[i]] = { id: p[i], data: p[i + 1], updated_at: Number(p[i + 2]), rev };
-            out.push({ id: p[i], rev });
+          for (let i = 0; i < p.length; i += 5) {
+            const own = rows(p[i]);
+            const cur = own[p[i + 1]];
+            if (cur && (cur.rev || 0) !== Number(p[i + 4])) continue;
+            own[p[i + 1]] = { id: p[i + 1], data: p[i + 2], updated_at: Number(p[i + 3]), rev };
+            out.push({ id: p[i + 1], rev });
           }
           save(db);
           return ok(out);
         }
-        if (/^DELETE FROM pages/i.test(sql)) { for (const id of p) delete db[id]; save(db); return ok([]); }
+        if (/^DELETE FROM ws_pages WHERE owner = \\? AND id IN/i.test(sql)) { const own = rows(p[0]); for (const id of p.slice(1)) delete own[id]; save(db); return ok([]); }
         throw { code: 'tool_error', message: 'unbekanntes SQL: ' + sql };
       },
     };
@@ -81,7 +97,7 @@ test.describe('Claude-Artifact', () => {
   test('Speichert über den Cloudflare-Connector in D1', async ({ page }) => {
     const errors = await openArtifact(page);
     // Leere D1 → Testnotizen werden angelegt und gespeichert
-    await page.waitForFunction(() => Object.keys(JSON.parse(localStorage.getItem('__mockd1') || '{}')).length > 20, null, { timeout: 10000 });
+    await page.waitForFunction(() => Object.keys(JSON.parse(localStorage.getItem('__mockd1') || '{}').christian || {}).length > 20, null, { timeout: 10000 });
     expect(await page.evaluate(() => window.lernraum.store.kind)).toBe('cloudflare');
     const calls = await page.evaluate(() => window.__calls.mcp.map((c) => c.sql.slice(0, 12)));
     expect(calls[0]).toMatch(/CREATE TABLE/);
@@ -90,7 +106,9 @@ test.describe('Claude-Artifact', () => {
     await page.locator('.blk-text').first().click();
     await page.keyboard.press('End');
     await page.keyboard.type(' – geändert');
-    await page.waitForFunction(() => JSON.parse(localStorage.getItem('__mockd1'))['seed-inbox'].data.includes('geändert'), null, { timeout: 5000 });
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('__mockd1')).christian['seed-inbox'].data.includes('geändert'), null, { timeout: 5000 });
+    // Nur der eigene Arbeitsbereich wird angefasst
+    expect(await page.evaluate(() => [...window.__calls.owners])).toEqual(['christian']);
     expect(errors).toEqual([]);
   });
 
@@ -99,6 +117,14 @@ test.describe('Claude-Artifact', () => {
     await openArtifact(page, { seedRows: { 'p-eigene': { id: 'p-eigene', data: JSON.stringify(pageRow), updated_at: 2, rev: 5 } } }, 'p-eigene');
     await expect(page.locator('.page-title')).toHaveText('Meine D1-Seite');
     expect(await page.evaluate(() => window.lernraum.pages.size)).toBe(1);
+  });
+
+  test('Übernimmt eine Datenbank aus der Zeit vor den Arbeitsbereichen', async ({ page }) => {
+    const old = { id: 'p-alt', kind: 'page', title: 'Aus der alten Tabelle', icon: '📦', blocks: [], parentId: null, trashed: 0, order: 1, createdAt: 1, updatedAt: 2 };
+    await openArtifact(page, { legacyRows: { 'p-alt': { id: 'p-alt', data: JSON.stringify(old), updated_at: 2, rev: 9 } } }, 'p-alt');
+    await expect(page.locator('.page-title')).toHaveText('Aus der alten Tabelle');
+    expect(await page.evaluate(() => localStorage.getItem('__mockd1legacy'))).toBeNull();
+    expect(await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('__mockd1')).christian))).toEqual(['p-alt']);
   });
 
   test('Fällt ohne Connector auf lokalen Speicher zurück', async ({ page }) => {

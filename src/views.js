@@ -442,6 +442,20 @@ export function openSettings(app) {
       h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-title' }, 'Stift erkannt'), h('span', { class: 'ios-row-value' }, storageGet('lr:penSeen', false) ? 'Ja' : 'Noch nicht'))
     ),
     installSection(app),
+    store && store.kind === 'cloudflare' && store.user && app.config.target === 'hosted'
+      ? h(
+          'div',
+          {},
+          h('div', { class: 'section-label' }, 'Konto'),
+          h(
+            'div',
+            { class: 'ios-list' },
+            h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-title' }, 'Angemeldet als'), h('span', { class: 'ios-row-value account-email' }, store.user)),
+            h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-main' }, h('span', { class: 'ios-row-title' }, 'Eigener Arbeitsbereich'), h('span', { class: 'ios-row-sub', style: { whiteSpace: 'normal' } }, 'Deine Notizen sind nur für dich sichtbar – jede Person hat ihre eigenen.'))),
+            h('button', { class: 'ios-row ios-row-action', type: 'button', onclick: () => { m.close(); app.logout(); } }, h('span', { class: 'ios-row-title', style: { color: 'var(--red)' } }, 'Abmelden'))
+          )
+        )
+      : null,
     h('div', { class: 'section-label' }, 'Speicher'),
     h(
       'div',

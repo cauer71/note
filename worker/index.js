@@ -2,6 +2,10 @@
 // Liefert die App (statische Assets) aus und stellt eine kleine JSON-API
 // für die Seiten in D1 bereit. Vor dem Worker sitzt Cloudflare Access;
 // zusätzlich prüft der Worker das Access-JWT, sobald ACCESS_AUD gesetzt ist.
+//
+// Jede Person hat einen eigenen Arbeitsbereich (Spalte owner). Welcher das ist,
+// steht in der Tabelle members (Identität → Arbeitsbereich, z. B. mehrere E-Mail-
+// Adressen einer Person); ohne Eintrag ist es die E-Mail-Adresse selbst.
 
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
@@ -21,7 +25,13 @@ export default {
       try {
         const identity = await authorize(request, env);
         if (!identity) return json({ error: 'Nicht angemeldet' }, 401);
-        return await handleApi(request, env, url, identity);
+        await ensureSchema(env);
+        const ws = await workspaceOf(env, identity);
+        if (!ws) return json({ error: 'Kein Arbeitsbereich' }, 403);
+        // Schutz gegen veraltete Zwischenspeicher: erwartet das Gerät einen anderen Arbeitsbereich, nichts tun
+        const expected = decodeHeader(request.headers.get('x-notes-workspace'));
+        if (expected && expected !== ws) return json({ error: 'Anderer Arbeitsbereich', code: 'workspace', workspace: ws }, 409);
+        return await handleApi(request, env, url, identity, ws);
       } catch (err) {
         return json({ error: String(err && err.message ? err.message : err) }, 500);
       }
@@ -31,39 +41,37 @@ export default {
   },
 };
 
-async function handleApi(request, env, url, identity) {
+async function handleApi(request, env, url, identity, ws) {
   const path = url.pathname.replace(/\/+$/, '');
   const method = request.method;
 
-  if (path === '/api/health') {
-    return json({ ok: true, user: identity.email || identity.type });
+  if (path === '/api/health' || path === '/api/me') {
+    return json({ ok: true, user: identity.email || identity.id, workspace: ws, legacy: !!env.LEGACY_WORKSPACE && ws === env.LEGACY_WORKSPACE });
   }
 
   if (path === '/api/pages' && method === 'GET') {
-    await ensureSchema(env);
     const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean);
     if (ids.length) {
       // gezielt einzelne Seiten (nach einem abgelehnten Speichern)
       if (ids.length > MAX_PARAMS) return json({ error: `Höchstens ${MAX_PARAMS} Seiten pro Anfrage` }, 400);
       const { results } = await env.DB.prepare(
-        `SELECT id, updated_at, rev, data FROM pages WHERE id IN (${ids.map((_, i) => '?' + (i + 1)).join(', ')})`
+        `SELECT id, updated_at, rev, data FROM ws_pages WHERE owner = ?1 AND id IN (${ids.map((_, i) => '?' + (i + 2)).join(', ')})`
       )
-        .bind(...ids)
+        .bind(ws, ...ids)
         .all();
       return json({ now: Date.now(), pages: results || [] });
     }
     // since = zuletzt gesehene Revision; neuere Zeilen kommen mit Inhalt
     const since = Number(url.searchParams.get('since') || 0) || 0;
     const { results } = await env.DB.prepare(
-      'SELECT id, updated_at, rev, CASE WHEN rev > ?1 THEN data END AS data FROM pages'
+      'SELECT id, updated_at, rev, CASE WHEN rev > ?2 THEN data END AS data FROM ws_pages WHERE owner = ?1'
     )
-      .bind(since)
+      .bind(ws, since)
       .all();
     return json({ now: Date.now(), pages: results || [] });
   }
 
   if (path === '/api/pages' && method === 'PUT') {
-    await ensureSchema(env);
     const body = await readJson(request);
     const pages = Array.isArray(body && body.pages) ? body.pages : [];
     if (!pages.length) return json({ saved: {}, rejected: [], tooLarge: [] });
@@ -83,13 +91,13 @@ async function handleApi(request, env, url, identity) {
       const ts = Math.min(Number(p.updated_at) || now, now + 60000);
       const base = Number(p.base_rev) || 0;
       // Optimistische Sperre: nur schreiben, wenn die Seite seit base_rev unverändert ist.
-      // Revision fortlaufend in D1 vergeben (Reihenfolge = Reihenfolge der Schreibvorgänge).
+      // Revision fortlaufend in D1 vergeben (Reihenfolge = Reihenfolge der Schreibvorgänge, über alle Arbeitsbereiche).
       stmts.push(
         env.DB.prepare(
-          'INSERT INTO pages (id, data, updated_at, rev, base_rev) VALUES (?1, ?2, ?3, (SELECT COALESCE(MAX(rev), 0) + 1 FROM pages), ?4) ' +
-            'ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev, base_rev = excluded.base_rev ' +
-            'WHERE pages.rev = excluded.base_rev RETURNING id, rev'
-        ).bind(p.id, p.data, ts, base)
+          'INSERT INTO ws_pages (owner, id, data, updated_at, rev, base_rev) VALUES (?1, ?2, ?3, ?4, (SELECT COALESCE(MAX(rev), 0) + 1 FROM ws_pages), ?5) ' +
+            'ON CONFLICT(owner, id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev, base_rev = excluded.base_rev ' +
+            'WHERE ws_pages.rev = excluded.base_rev RETURNING id, rev'
+        ).bind(ws, p.id, p.data, ts, base)
       );
       ids.push(p.id);
     }
@@ -105,19 +113,18 @@ async function handleApi(request, env, url, identity) {
   }
 
   if (path === '/api/pages' && method === 'DELETE') {
-    await ensureSchema(env);
     const body = await readJson(request);
     const ids = Array.isArray(body && body.ids) ? body.ids.filter((x) => typeof x === 'string') : [];
     if (!ids.length) return json({ deleted: 0 });
     if (ids.length > MAX_PARAMS) return json({ error: `Höchstens ${MAX_PARAMS} Seiten pro Anfrage` }, 400);
-    await env.DB.prepare(`DELETE FROM pages WHERE id IN (${ids.map((_, i) => '?' + (i + 1)).join(', ')})`)
-      .bind(...ids)
+    await env.DB.prepare(`DELETE FROM ws_pages WHERE owner = ?1 AND id IN (${ids.map((_, i) => '?' + (i + 2)).join(', ')})`)
+      .bind(ws, ...ids)
       .run();
     return json({ deleted: ids.length });
   }
 
   if (path === '/api/settings' && method === 'GET') {
-    const { results } = await env.DB.prepare('SELECT key, value FROM settings').all();
+    const { results } = await env.DB.prepare('SELECT key, value FROM ws_settings WHERE owner = ?1').bind(ws).all();
     const out = {};
     for (const r of results || []) {
       try {
@@ -133,11 +140,13 @@ async function handleApi(request, env, url, identity) {
     const body = await readJson(request);
     if (!body || typeof body !== 'object') return json({ error: 'Ungültige Einstellungen' }, 400);
     const now = Date.now();
-    const stmts = Object.entries(body).map(([k, v]) =>
+    const entries = Object.entries(body);
+    if (entries.length > MAX_BATCH) return json({ error: `Höchstens ${MAX_BATCH} Einstellungen pro Anfrage` }, 400);
+    const stmts = entries.map(([k, v]) =>
       env.DB.prepare(
-        'INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3) ' +
-          'ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at'
-      ).bind(k, JSON.stringify(v), now)
+        'INSERT INTO ws_settings (owner, key, value, updated_at) VALUES (?1, ?2, ?3, ?4) ' +
+          'ON CONFLICT(owner, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at'
+      ).bind(ws, k, JSON.stringify(v), now)
     );
     if (stmts.length) await env.DB.batch(stmts);
     return json({ saved: stmts.length });
@@ -147,24 +156,86 @@ async function handleApi(request, env, url, identity) {
 }
 
 // Schema anlegen bzw. nachrüsten (einmal pro Worker-Instanz)
+//   ws_pages     eine Zeile pro Seite und Arbeitsbereich (owner, id)
+//   ws_settings  Einstellungen pro Arbeitsbereich
+//   members      Identität (E-Mail bzw. Service-Token) → Arbeitsbereich
+// Ältere Datenbanken (Tabelle pages ohne owner) werden einmalig in den Arbeitsbereich
+// LEGACY_WORKSPACE übernommen; die alte Tabelle bleibt als Sicherung umbenannt erhalten.
 let schemaReady = null;
 function ensureSchema(env) {
   if (!schemaReady) {
     schemaReady = (async () => {
-      await env.DB.prepare(
-        'CREATE TABLE IF NOT EXISTS pages (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL, rev INTEGER NOT NULL DEFAULT 0, base_rev INTEGER NOT NULL DEFAULT 0)'
-      ).run();
-      const { results } = await env.DB.prepare('PRAGMA table_info(pages)').all();
-      const cols = new Set((results || []).map((c) => c.name));
-      if (!cols.has('rev')) await env.DB.prepare('ALTER TABLE pages ADD COLUMN rev INTEGER NOT NULL DEFAULT 0').run();
-      if (!cols.has('base_rev')) await env.DB.prepare('ALTER TABLE pages ADD COLUMN base_rev INTEGER NOT NULL DEFAULT 0').run();
-      await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_pages_rev ON pages(rev)').run();
+      await env.DB.batch([
+        env.DB.prepare(
+          'CREATE TABLE IF NOT EXISTS ws_pages (owner TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL, rev INTEGER NOT NULL DEFAULT 0, base_rev INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (owner, id))'
+        ),
+        env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_ws_pages_rev ON ws_pages(rev)'),
+        env.DB.prepare(
+          'CREATE TABLE IF NOT EXISTS ws_settings (owner TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (owner, key))'
+        ),
+        env.DB.prepare('CREATE TABLE IF NOT EXISTS members (identity TEXT PRIMARY KEY, workspace TEXT NOT NULL, created_at INTEGER)'),
+      ]);
+      if (env.LEGACY_WORKSPACE) await migrateLegacy(env);
     })().catch((err) => {
       schemaReady = null;
       throw err;
     });
   }
   return schemaReady;
+}
+
+async function migrateLegacy(env) {
+  const { results } = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('pages', 'settings')").all();
+  const names = new Set((results || []).map((r) => r.name));
+  if (!names.size) return;
+  // Alles in einer Transaktion: kopieren und alte Tabelle umbenennen (kein doppeltes Übernehmen)
+  const suffix = '_legacy_' + Date.now();
+  const stmts = [];
+  if (names.has('pages')) {
+    const { results: cols } = await env.DB.prepare('PRAGMA table_info(pages)').all();
+    const has = new Set((cols || []).map((c) => c.name));
+    stmts.push(
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO ws_pages (owner, id, data, updated_at, rev, base_rev) SELECT ?1, id, data, updated_at, ${has.has('rev') ? 'rev' : '0'}, ${has.has('base_rev') ? 'base_rev' : '0'} FROM pages`
+      ).bind(env.LEGACY_WORKSPACE),
+      env.DB.prepare(`ALTER TABLE pages RENAME TO pages${suffix}`)
+    );
+  }
+  if (names.has('settings')) {
+    stmts.push(
+      env.DB.prepare('INSERT OR IGNORE INTO ws_settings (owner, key, value, updated_at) SELECT ?1, key, value, updated_at FROM settings').bind(env.LEGACY_WORKSPACE),
+      env.DB.prepare(`ALTER TABLE settings RENAME TO settings${suffix}`)
+    );
+  }
+  try {
+    await env.DB.batch(stmts);
+  } catch (err) {
+    // Eine andere Instanz war schneller (Tabelle schon umbenannt) → nichts zu tun
+    const again = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('pages', 'settings')").all();
+    if ((again.results || []).length) throw err;
+  }
+}
+
+// Arbeitsbereich einer Identität (kurz zwischengespeichert)
+const wsCache = new Map();
+async function workspaceOf(env, identity) {
+  const id = identity.id;
+  if (!id) return null;
+  const hit = wsCache.get(id);
+  if (hit && Date.now() - hit.at < 60000) return hit.ws;
+  const row = await env.DB.prepare('SELECT workspace FROM members WHERE identity = ?1').bind(id).first();
+  const ws = (row && row.workspace) || id;
+  wsCache.set(id, { ws, at: Date.now() });
+  return ws;
+}
+
+function decodeHeader(v) {
+  if (!v) return '';
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
 }
 
 async function readJson(request) {
@@ -187,15 +258,20 @@ let certCache = { at: 0, keys: null };
 
 async function authorize(request, env) {
   if (!env.ACCESS_AUD || !env.ACCESS_TEAM_DOMAIN) {
-    // Ohne Access-Konfiguration nur mit ausdrücklichem Entwicklungsschalter offen
-    return env.DEV_NO_AUTH === '1' ? { type: 'local' } : null;
+    // Ohne Access-Konfiguration nur mit ausdrücklichem Entwicklungsschalter offen;
+    // x-dev-user simuliert dann verschiedene Personen (Tests)
+    if (env.DEV_NO_AUTH !== '1') return null;
+    const dev = (request.headers.get('x-dev-user') || 'dev').trim().toLowerCase();
+    return { type: 'local', id: dev, email: dev };
   }
   const token =
     request.headers.get('cf-access-jwt-assertion') || getCookie(request, 'CF_Authorization');
   if (!token) return null;
   try {
     const payload = await verifyJwt(token, env);
-    return { type: payload.type || 'app', email: payload.email || payload.common_name || '' };
+    // Personen: E-Mail; Service-Token: Client-ID (common_name)
+    const id = String(payload.email || payload.common_name || '').trim().toLowerCase();
+    return { type: payload.type || 'app', id, email: payload.email || '' };
   } catch {
     return null;
   }

@@ -1100,6 +1100,12 @@ button.ios-row:active {
   font-size: 16px;
   white-space: nowrap;
 }
+.ios-row-value.account-email {
+  min-width: 0;
+  max-width: 65%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .ios-chev {
   color: var(--label-3);
   width: 15px !important;
