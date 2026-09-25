@@ -102,7 +102,7 @@ export function renderFlashcards(ed, b) {
   };
   const field = (c, key, ph) => {
     const el = h('div', { class: 'fc-' + key + ' fc-field', contenteditable: 'true', 'data-ph': ph, spellcheck: 'true' });
-    el.innerHTML = c[key] || '';
+    el.innerHTML = sanitizeInline(c[key] || '');
     renderMathIn(el);
     el.addEventListener('input', () => {
       ed.history.typing();
@@ -205,8 +205,8 @@ export function studySession(app, items, opts = {}) {
     body.innerHTML = '';
     if (!current) return finish();
     const pct = Math.round((done / total) * 100);
-    const front = h('div', { class: 'study-face study-front' }, h('div', { class: 'study-label' }, 'Frage'), h('div', { class: 'study-text', html: current.card.q }));
-    const back = h('div', { class: 'study-face study-back' }, h('div', { class: 'study-label' }, 'Antwort'), h('div', { class: 'study-text', html: current.card.a || '<span class="muted">(keine Antwort)</span>' }));
+    const front = h('div', { class: 'study-face study-front' }, h('div', { class: 'study-label' }, 'Frage'), h('div', { class: 'study-text', html: sanitizeInline(current.card.q) }));
+    const back = h('div', { class: 'study-face study-back' }, h('div', { class: 'study-label' }, 'Antwort'), h('div', { class: 'study-text', html: sanitizeInline(current.card.a) || '<span class="muted">(keine Antwort)</span>' }));
     renderMathIn(front);
     renderMathIn(back);
     const card = h('button', { class: 'study-card', type: 'button', 'aria-label': 'Karte umdrehen', onclick: () => !flipped && flip() }, h('div', { class: 'study-inner' }, front, back));

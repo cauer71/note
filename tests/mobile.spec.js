@@ -1,6 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { openApp } from './helpers.js';
 
+// iPad hochkant: Seitenleiste ist ein Overlay und muss erst eingeblendet werden
+async function showSidebar(page) {
+  if (await page.evaluate(() => document.body.classList.contains('is-compact') && !document.body.classList.contains('compact-open'))) {
+    await page.locator('.navbar .glass-btn[aria-label="Seitenleiste zeigen"]').tap();
+    await page.waitForTimeout(450);
+  }
+}
+
 test.describe('Touch (iPhone / iPad)', () => {
   test('Navigation, Tastatur-Leiste und Blöcke per Touch', async ({ page, isMobile }, info) => {
     await openApp(page);
@@ -9,7 +17,9 @@ test.describe('Touch (iPhone / iPad)', () => {
       await expect(page.locator('.tabbar .tab.on')).toContainText('Notizen');
       await page.locator('.notes-home .tree-main', { hasText: 'Lernmethoden' }).tap();
     } else {
+      await showSidebar(page);
       await page.locator('.sidebar .tree-main', { hasText: 'Lernmethoden' }).tap();
+      await expect(page.locator('body')).not.toHaveClass(/compact-open/);
     }
     await expect(page.locator('.page-title')).toHaveText('Lernmethoden, die funktionieren');
     // Seiten-Leiste unten sichtbar (Touch)
@@ -61,7 +71,10 @@ test.describe('Touch (iPhone / iPad)', () => {
   test('Suche über den Such-Button', async ({ page }, info) => {
     await openApp(page);
     if (info.project.name === 'iphone') await page.locator('.tab-search').tap();
-    else await page.locator('.sidebar .search-field').tap();
+    else {
+      await showSidebar(page);
+      await page.locator('.sidebar .search-field').tap();
+    }
     await expect(page.locator('.search-input')).toBeVisible();
     await page.locator('.search-input').fill('Matrizen');
     await expect(page.locator('.search-row', { hasText: 'Lineare Algebra' })).toBeVisible();

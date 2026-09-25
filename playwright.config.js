@@ -25,7 +25,7 @@ export default defineConfig({
   webServer: [
     { command: 'node scripts/serve.mjs', port: 4173, reuseExistingServer: true },
     {
-      command: 'rm -rf .wrangler/test-state && npx wrangler d1 execute notizen --local --file schema.sql --persist-to .wrangler/test-state >/dev/null && npx wrangler dev --local --port 8788 --persist-to .wrangler/test-state --var ACCESS_AUD:',
+      command: 'rm -rf .wrangler/test-state && npx wrangler d1 execute notizen --local --file schema.sql --persist-to .wrangler/test-state >/dev/null && npx wrangler dev --local --port 8788 --persist-to .wrangler/test-state --var ACCESS_AUD: --var DEV_NO_AUTH:1',
       port: 8788,
       reuseExistingServer: true,
       timeout: 120000,

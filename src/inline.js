@@ -267,6 +267,26 @@ export function textLength(el) {
   return nodeLen(el);
 }
 
+// Text mit denselben Offsets wie die Caret-Helfer (Formel = 1 Zeichen, <br> = \n)
+export function offsetText(el) {
+  let out = '';
+  const visit = (n) => {
+    if (n.nodeType === 3) out += n.nodeValue;
+    else if (n.nodeName === 'BR') out += '\n';
+    else if (n.nodeType === 1 && n.classList && n.classList.contains('math')) out += '\ufffc';
+    else for (const c of n.childNodes) visit(c);
+  };
+  visit(el);
+  return out;
+}
+
+// Länge des gespeicherten HTML (ohne Zero-Width-Spaces aus der Bearbeitung)
+export function modelTextLength(html) {
+  const d = document.createElement('div');
+  d.innerHTML = sanitizeInline(html || '');
+  return nodeLen(d);
+}
+
 // Setzt den Caret an einen Textoffset (oder ans Ende bei -1 / zu groß)
 export function setCaretOffset(el, offset, endOffset) {
   const sel = window.getSelection();

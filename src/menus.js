@@ -47,9 +47,17 @@ export function popover(anchor, content, opts = {}) {
       opts.onEscape && opts.onEscape();
     }
   }
+  // Schließen erst beim Klick auf den Hintergrund – sonst landet der Tipp auf dem Element darunter (iOS)
+  let downOnBackdrop = false;
   backdrop.addEventListener('pointerdown', (e) => {
+    downOnBackdrop = true;
     e.preventDefault();
-    api.close();
+  });
+  backdrop.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (downOnBackdrop) api.close();
+    downOnBackdrop = false;
   });
   document.addEventListener('keydown', onKey, true);
 
@@ -201,8 +209,13 @@ export function modal(content, opts = {}) {
     }
   }
   document.addEventListener('keydown', onKey, true);
+  let downOnBackdrop = false;
   backdrop.addEventListener('pointerdown', (e) => {
-    if (e.target === backdrop) api.close();
+    downOnBackdrop = e.target === backdrop;
+  });
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop && downOnBackdrop) api.close();
+    downOnBackdrop = false;
   });
   return api;
 }
@@ -262,10 +275,8 @@ export function promptDialog({ title, label, value = '', okLabel = 'OK', placeho
       )
     );
     const m = modal(body, { title, class: 'modal-sm', onClose: () => finish(null) });
-    setTimeout(() => {
-      input.focus();
-      input.select();
-    }, 0);
+    input.focus();
+    input.select();
   });
 }
 

@@ -19,6 +19,8 @@ import {
   COLORS,
   COLOR_LABELS,
   htmlToText,
+  offsetText,
+  modelTextLength,
 } from './inline.js';
 import { BLOCK_TYPES, TYPE_BY_ID, TEXT_TYPES, newBlock, blockSubtreeEnd, pageTitle, CALLOUT_ICONS } from './model.js';
 import { menu, popover, closeAllPopovers, emojiPicker, promptDialog } from './menus.js';
@@ -63,6 +65,7 @@ export class Editor {
   destroy() {
     this.closeSlash();
     this.closeMention();
+    this.root.querySelectorAll('.draw-block').forEach((el) => el._dispose && el._dispose());
     this.history.dispose();
     for (const ev of ['input', 'keydown', 'beforeinput', 'paste', 'focusin', 'focusout', 'click', 'compositionstart', 'compositionend', 'pointerdown', 'dragover', 'drop']) {
       this.root.removeEventListener(ev, this.onEvent);
@@ -118,7 +121,7 @@ export class Editor {
         'aria-level': /^h\d$/.test(b.type) ? b.type.slice(1) : null,
         'aria-multiline': 'true',
       });
-      txt.innerHTML = b.text || '';
+      txt.innerHTML = sanitizeInline(b.text || '');
       renderMathIn(txt);
       if (b.type === 'todo' && b.checked) txt.classList.add('done');
       body.appendChild(txt);
@@ -565,7 +568,7 @@ export class Editor {
     if (mod(e) && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'x')) {
       const md = blocksToMarkdown(ids.map((id) => this.blocks[this.indexOf(id)]), { pageTitle: (id) => pageTitle(this.app.getPage(id)) });
       writeBlocksToClipboard(md, ids.map((id) => this.blocks[this.indexOf(id)]));
-      if (e.key.toLowerCase() === 'x') this.deleteBlocks(ids);
+      if (e.key.toLowerCase() === 'x') this.deleteBlocks(ids, { keepSubpages: true });
       e.preventDefault();
       toast(e.key.toLowerCase() === 'x' ? 'Ausgeschnitten' : 'Kopiert');
       return true;
@@ -584,10 +587,10 @@ export class Editor {
     return false;
   }
 
-  deleteBlocks(ids) {
+  deleteBlocks(ids, opts = {}) {
     this.history.structural();
     const firstIdx = this.indexOf(ids[0]);
-    for (const id of ids) this.removeBlock(id, { noHistory: true });
+    for (const id of ids) this.removeBlock(id, { noHistory: true, trashSubpage: !opts.keepSubpages });
     this.clearSelection();
     const j = Math.max(0, Math.min(firstIdx - 1, this.blocks.length - 1));
     const b = this.blocks[j];
@@ -1027,10 +1030,11 @@ export class Editor {
       indent = indent + 1;
     }
     const nb = newBlock(type, { indent, text: after });
-    // direkt hinter dem Block (vor dessen Kindern) einfügen
-    this.blocks.splice(idx + 1, 0, nb);
+    // direkt hinter dem Block einfügen – bei eingeklapptem Toggle hinter dessen Kinder
+    const at = b.type === 'toggle' && !b.open ? blockSubtreeEnd(this.blocks, idx) : idx + 1;
+    this.blocks.splice(at, 0, nb);
     const el = this.renderBlock(nb);
-    const next = this.blocks[idx + 2];
+    const next = this.blocks[at + 1];
     if (next && this.els.get(next.id)) this.root.insertBefore(el, this.els.get(next.id));
     else this.root.appendChild(el);
     this.refreshLayout();
@@ -1061,7 +1065,7 @@ export class Editor {
     if (TEXT_TYPES.has(prev.type)) {
       this.history.structural();
       const pt = this.textEl(prev.id);
-      const off = textLength(pt);
+      const off = modelTextLength(prev.text);
       prev.text = sanitizeInline((prev.text || '') + (b.text || ''));
       this.removeBlock(b.id, { noHistory: true });
       pt.innerHTML = prev.text;
@@ -1086,7 +1090,7 @@ export class Editor {
     const next = this.blocks[nj];
     if (!TEXT_TYPES.has(next.type)) return;
     this.history.structural();
-    const off = textLength(t);
+    const off = modelTextLength(b.text);
     b.text = sanitizeInline((b.text || '') + (next.text || ''));
     this.removeBlock(next.id, { noHistory: true });
     t.innerHTML = b.text;
@@ -1259,7 +1263,7 @@ export class Editor {
     });
     const wrap = h('div', { class: 'inline-math-pop' }, input, prev, h('div', { class: 'confirm-actions' }, h('button', { class: 'btn btn-primary btn-sm', onclick: done }, 'Fertig')));
     const pop = popover(span, wrap, { title: 'Formel' });
-    setTimeout(() => input.focus(), 30);
+    input.focus();
   }
 
   onPointerDown(e) {
@@ -1329,7 +1333,8 @@ export class Editor {
     const own = /data-lernraum-blocks="([^"]*)"/.exec(html || '');
     if (own) {
       try {
-        blocks = JSON.parse(decodeURIComponent(own[1])).map((x) => Object.assign(x, { id: uid('b') }));
+        blocks = sanitizeBlocks(JSON.parse(decodeURIComponent(own[1])));
+        for (const x of blocks) if (x.type === 'page' && x.pageId) this.app.restorePage(x.pageId, { silent: true });
       } catch {
         blocks = null;
       }
@@ -1393,7 +1398,7 @@ export class Editor {
     const s = this.slash;
     if (!s) return;
     const off = getCaretOffset(s.t);
-    const txt = htmlToText(s.t.innerHTML);
+    const txt = offsetText(s.t);
     if (off <= s.slashOffset || txt[s.slashOffset] !== '/') return this.closeSlash();
     const q = txt.slice(s.slashOffset + 1, off);
     if (q.length > 24 || /\s{2}/.test(q)) return this.closeSlash();
@@ -1696,7 +1701,7 @@ export class Editor {
     const m = this.mention;
     if (!m) return;
     const off = getCaretOffset(m.t);
-    const txt = htmlToText(m.t.innerHTML);
+    const txt = offsetText(m.t);
     const trigger = txt[m.atOffset] === '@' ? 1 : txt.slice(m.atOffset, m.atOffset + 2) === '[[' ? 2 : 0;
     if (!trigger || off < m.atOffset + trigger) return this.closeMention();
     const q = txt.slice(m.atOffset + trigger, off);
@@ -1864,6 +1869,12 @@ class History {
     }
     const focusId = ed.focusedId;
     const before = new Map(ed.page.blocks.map((b) => [b.id, JSON.stringify(b)]));
+    // Lernfortschritt der Karteikarten nicht zurückdrehen
+    const progress = new Map();
+    for (const b of ed.page.blocks) if (b.type === 'flashcards') for (const c of b.cards || []) progress.set(c.id, { box: c.box, due: c.due, reps: c.reps, last: c.last, lapses: c.lapses });
+    for (const b of data.b) if (b.type === 'flashcards') for (const c of b.cards || []) if (progress.has(c.id)) Object.assign(c, progress.get(c.id));
+    // Unterseiten, die per Rückgängig wieder auftauchen, aus dem Papierkorb holen
+    for (const b of data.b) if (b.type === 'page' && b.pageId) ed.app.restorePage(b.pageId, { silent: true });
     ed.page.blocks = data.b;
     ed.render();
     ed.app.onTitleRestored && ed.app.onTitleRestored(ed.page);
@@ -2042,6 +2053,43 @@ function toRoman(n) {
 
 function blockInsertIndex(blocks, idx) {
   return idx + 1;
+}
+
+// Blöcke aus fremden Quellen (Zwischenablage, Import) bereinigen
+export function sanitizeBlocks(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const x of list) {
+    if (!x || typeof x !== 'object' || !TYPE_BY_ID[x.type]) continue;
+    const b = newBlock(x.type);
+    b.indent = Math.max(0, Math.min(6, Number(x.indent) || 0));
+    if (typeof x.text === 'string') b.text = x.type === 'code' ? x.text : sanitizeInline(x.text);
+    if (x.type === 'todo') b.checked = !!x.checked;
+    if (x.type === 'toggle') b.open = x.open !== false;
+    if (x.type === 'callout' && typeof x.icon === 'string') b.icon = x.icon.slice(0, 8);
+    if (typeof x.color === 'string' && COLORS.includes(x.color)) b.color = x.color;
+    if (typeof x.bg === 'string' && COLORS.includes(x.bg)) b.bg = x.bg;
+    if (x.type === 'code' && typeof x.lang === 'string') b.lang = x.lang.replace(/[^\w+#-]/g, '').slice(0, 20);
+    if (x.type === 'math' && typeof x.tex === 'string') b.tex = x.tex;
+    if (x.type === 'table' && Array.isArray(x.rows)) {
+      b.rows = x.rows.filter(Array.isArray).map((r) => r.map((c) => sanitizeInline(String(c || ''))));
+      b.header = !!x.header;
+    }
+    if (x.type === 'image' && typeof x.src === 'string' && /^(data:image\/|https:)/.test(x.src)) {
+      b.src = x.src;
+      b.caption = String(x.caption || '');
+    }
+    if (x.type === 'flashcards' && Array.isArray(x.cards)) b.cards = x.cards.map((c) => ({ id: uid('k'), q: sanitizeInline(String(c.q || '')), a: sanitizeInline(String(c.a || '')), box: 0, due: 0 }));
+    if (x.type === 'quiz' && Array.isArray(x.questions)) b.questions = x.questions.map((q) => ({ q: String(q.q || ''), options: (q.options || []).map(String), correct: Number(q.correct) || 0, explain: String(q.explain || '') }));
+    if (x.type === 'drawing' && Array.isArray(x.strokes)) {
+      b.strokes = x.strokes.filter((s) => s && Array.isArray(s.p)).map((s) => ({ t: s.t === 'hl' ? 'hl' : 'pen', c: String(s.c || 'ink').slice(0, 12), w: Number(s.w) || 3, p: s.p.map(Number) }));
+      b.h = Number(x.h) || 520;
+      b.bg = ['lines', 'grid', 'dots', 'blank'].includes(x.bg) ? x.bg : 'lines';
+    }
+    if ((x.type === 'page' || x.type === 'database') && typeof x.pageId === 'string') b.pageId = x.pageId;
+    out.push(b);
+  }
+  return out;
 }
 
 export function positionFloating(box, rect) {

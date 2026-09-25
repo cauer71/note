@@ -48,9 +48,25 @@ function colorOf(s, dark) {
 
 const instances = new Set();
 export function redrawAllDrawings() {
-  for (const inst of instances) if (inst.isConnected()) inst.redraw();
-    else instances.delete(inst);
+  for (const inst of [...instances]) {
+    if (inst.isConnected()) inst.redraw();
+    else inst.dispose();
+  }
 }
+
+// Einstellung „Nur Stift zeichnet“ (aus den Einstellungen)
+export function setFingerDrawing(on) {
+  toolState.finger = !!on;
+  saveTool();
+  redrawAllDrawings();
+}
+
+export function fingerDrawing() {
+  return !!toolState.finger;
+}
+
+// iOS begrenzt Canvas auf ~16 Megapixel – wir bleiben deutlich darunter
+const MAX_CANVAS_PX = 8_000_000;
 
 // ---------------------------------------------------------------------------
 export function renderDrawing(ed, b) {
@@ -166,8 +182,9 @@ export function renderDrawing(ed, b) {
   function layout() {
     const cssW = surface.clientWidth || 600;
     scale = cssW / W;
-    dpr = Math.min(3, window.devicePixelRatio || 1);
     const cssH = Math.round(b.h * scale);
+    dpr = Math.min(3, window.devicePixelRatio || 1);
+    if (cssW * cssH * dpr * dpr > MAX_CANVAS_PX) dpr = Math.max(0.5, Math.sqrt(MAX_CANVAS_PX / (cssW * cssH)));
     surface.style.height = cssH + 'px';
     surface.style.setProperty('--gap', 36 * scale + 'px');
     for (const c of [canvas, live]) {
@@ -198,14 +215,33 @@ export function renderDrawing(ed, b) {
     updateTouchMode();
   }
 
-  const ro = new ResizeObserver(() => layout());
+  const ro = new ResizeObserver(() => {
+    if (!wrap.isConnected) return inst.dispose();
+    layout();
+  });
   requestAnimationFrame(() => {
     ro.observe(surface);
     layout();
   });
 
-  const inst = { isConnected: () => wrap.isConnected, redraw: () => { renderPalette(); redraw(); } };
+  const inst = {
+    isConnected: () => wrap.isConnected,
+    redraw: () => {
+      renderPalette();
+      redraw();
+    },
+    dispose: () => {
+      ro.disconnect();
+      instances.delete(inst);
+      // Canvas-Speicher sofort freigeben (iOS hat ein festes Budget)
+      for (const c of [canvas, live]) {
+        c.width = 0;
+        c.height = 0;
+      }
+    },
+  };
   instances.add(inst);
+  wrap._dispose = inst.dispose;
 
   // --- Eingabe ------------------------------------------------------------
   function pt(e) {
@@ -309,10 +345,10 @@ export function renderDrawing(ed, b) {
   surface.addEventListener('pointerup', finish);
   surface.addEventListener('pointercancel', finish);
 
-  // iOS: Apple-Pencil-Berührungen dürfen nicht scrollen, Finger schon
+  // iOS: Apple-Pencil-Berührungen dürfen nicht scrollen, Finger schon (auch bei aufliegendem Handballen)
   const stopStylus = (e) => {
-    const t = e.touches && e.touches[0];
-    if (t && t.touchType === 'stylus') e.preventDefault();
+    const all = [...(e.touches || []), ...(e.changedTouches || [])];
+    if (all.some((t) => t.touchType === 'stylus') || activePointer != null) e.preventDefault();
   };
   surface.addEventListener('touchstart', stopStylus, { passive: false });
   surface.addEventListener('touchmove', stopStylus, { passive: false });
@@ -583,7 +619,7 @@ export function drawingToBlob(b) {
   maxY = Math.min(b.h, maxY + pad);
   const w = Math.max(50, maxX - minX);
   const hh = Math.max(50, maxY - minY);
-  const k = Math.min(2, 1600 / w);
+  const k = Math.min(2, 1600 / w, Math.sqrt(12_000_000 / (w * hh)));
   const c = document.createElement('canvas');
   c.width = Math.round(w * k);
   c.height = Math.round(hh * k);

@@ -317,10 +317,8 @@ export class DbView {
     if (open) this.app.openRow(row, this.db);
     else {
       this.refresh();
-      setTimeout(() => {
-        const input = this.el.querySelector(`[data-row="${row.id}"] .cell-title-input`);
-        if (input) input.focus();
-      }, 0);
+      const input = this.el.querySelector(`[data-row="${row.id}"] .cell-title-input`);
+      if (input) input.focus();
     }
     return row;
   }
@@ -1283,8 +1281,11 @@ function attachCardDrag(el, view, row, onDrop, onClick) {
         under = document.elementFromPoint(ev.clientX, ev.clientY);
       }
       cleanup();
-      if (wasDragging) onDrop(under);
-      else if (ev.type === 'pointerup' && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 8) onClick();
+      if (wasDragging) {
+        el._justDragged = true;
+        setTimeout(() => (el._justDragged = false), 400);
+        onDrop(under);
+      }
     };
     const cleanup = () => {
       window.removeEventListener('pointermove', move, true);
@@ -1298,6 +1299,11 @@ function attachCardDrag(el, view, row, onDrop, onClick) {
     window.addEventListener('pointermove', move, true);
     window.addEventListener('pointerup', up, true);
     window.addEventListener('pointercancel', up, true);
+  });
+  // Öffnen über "click": so landet der Tipp nicht auf der neu gezeigten Seite
+  el.addEventListener('click', (e) => {
+    if (el._justDragged || e.target.closest('button, input, a')) return;
+    onClick();
   });
   // Touch: Scrollen während des Ziehens verhindern
   el.addEventListener('touchmove', (e) => {

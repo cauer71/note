@@ -9,7 +9,7 @@ import { blocksToMarkdown, blocksToPlain, markdownToBlocks } from './markdown.js
 import { renderDatabasePage, renderRowProps } from './database.js';
 import { updateTocs, renderMathIn } from './blocks.js';
 import { redrawAllDrawings } from './drawing.js';
-import { kvGet, kvSet, LocalStore } from './store.js';
+import { kvGet, kvSet, LocalStore, pageBytes, MAX_PAGE_BYTES } from './store.js';
 import { buildSeed } from './seed.js';
 import { AI } from './ai.js';
 import { Toolbars } from './toolbar.js';
@@ -35,6 +35,10 @@ export class App {
     this.pages = new Map();
     this.dirty = new Set();
     this.knownRemote = new Set();
+    this.savedAt = new Map();
+    this.deferred = new Map();
+    this.tooLarge = new Set();
+    this.tooLargeWarned = new Set();
     this.store = null;
     this.editor = null;
     this.currentId = null;
@@ -69,7 +73,8 @@ export class App {
     this.main.append(this.navbar, this.scroll);
     this.tabbar = h('nav', { class: 'tabbar', 'aria-label': 'Bereiche' });
     this.banner = h('div', { class: 'banner', hidden: true });
-    this.root.append(this.sidebar, this.main, this.tabbar, this.banner);
+    this.scrim = h('div', { class: 'sb-scrim', 'aria-hidden': 'true', onclick: () => this.setCompactOpen(false) });
+    this.root.append(this.sidebar, this.scrim, this.main, this.tabbar, this.banner);
     this.toolbars = new Toolbars(this);
     this.applyLayoutClasses();
     this.content.appendChild(h('div', { class: 'loading' }, h('span', { class: 'spinner' }), h('span', {}, 'Lernraum wird geladen …')));
@@ -93,11 +98,21 @@ export class App {
 
   applyLayoutClasses() {
     const narrow = isNarrow();
+    const changed = this.wasNarrow !== undefined && this.wasNarrow !== narrow;
+    this.wasNarrow = narrow;
     document.body.classList.toggle('is-narrow', narrow);
     document.body.classList.toggle('is-touch', isTouchUI());
-    document.body.classList.toggle('sidebar-closed', !narrow && !this.sidebarOpen);
+    const compact = !narrow && window.innerWidth < 1024;
+    document.body.classList.toggle('is-compact', compact);
+    if (!compact) document.body.classList.remove('compact-open');
+    document.body.classList.toggle('sidebar-closed', !narrow && !compact && !this.sidebarOpen);
     this.renderNavbar && this.navbar && this.renderNavbar();
     this.renderTabbar && this.tabbar && this.renderTabbar();
+    // Breakpoint gewechselt (iPad gedreht, Split View): Ansicht neu aufbauen, Editor nicht stören
+    if (changed && this.pages.size && !(this.editor && this.editor.root.contains(document.activeElement))) {
+      if (!narrow && this.view === 'notes') this.goView('heute');
+      else this.route(true);
+    }
   }
 
   async start(stores) {
@@ -121,7 +136,7 @@ export class App {
         if (cached && cached.pages && !this.pages.size) {
           for (const p of cached.pages) this.pages.set(p.id, p);
           this.knownRemote = new Set(cached.known || []);
-          this.lastSync = cached.lastSync || 0;
+          this.lastSync = cached.v === 2 ? cached.lastSync || 0 : 0;
           (cached.dirty || []).forEach((id) => this.dirty.add(id));
           this.store = store;
           this.cacheKey = cacheKey;
@@ -206,6 +221,7 @@ export class App {
     if (!page) return;
     page.updatedAt = Date.now();
     this.dirty.add(page.id);
+    this.tooLarge.delete(page.id);
     this.setSync('pending');
     this.saveSoon();
     if (!opts.silent) {
@@ -223,6 +239,9 @@ export class App {
   flushSave() {
     this.saveSoon.cancel();
     if (this.dirty.size) this.save();
+    // sofort in IndexedDB sichern – falls die App jetzt beendet wird, wird beim nächsten Start nachgespeichert
+    this.cacheSoon.cancel();
+    this.writeCache();
   }
 
   async save() {
@@ -230,24 +249,51 @@ export class App {
       if (this.saving) this.saveAgain = true;
       return;
     }
-    const ids = [...this.dirty];
-    if (!ids.length) return;
+    const ids = [...this.dirty].filter((id) => !this.tooLarge.has(id));
+    if (!ids.length) {
+      if (!this.dirty.size) this.setSync('saved');
+      return;
+    }
     this.saving = true;
     this.setSync('syncing');
-    const pages = ids.map((id) => this.pages.get(id)).filter(Boolean);
-    const deleted = ids.filter((id) => !this.pages.has(id));
-    ids.forEach((id) => this.dirty.delete(id));
+    const pages = [];
+    const deleted = [];
+    for (const id of ids) {
+      const p = this.pages.get(id);
+      if (!p) {
+        deleted.push(id);
+        continue;
+      }
+      const clean = stripTransient(p);
+      if (pageBytes(JSON.stringify(clean)) > MAX_PAGE_BYTES) {
+        this.tooLarge.add(id);
+        if (this.tooLargeWarned.has(id)) continue;
+        this.tooLargeWarned.add(id);
+        toast(`„${pageTitle(p)}“ ist zu groß zum Speichern (max. 1,9 MB). Verkleinere Bilder oder teile die Handschrift auf mehrere Seiten auf.`, { kind: 'error', duration: 8000 });
+        continue;
+      }
+      pages.push(clean);
+    }
+    const sent = [...pages.map((p) => p.id), ...deleted];
+    sent.forEach((id) => this.dirty.delete(id));
     try {
-      if (pages.length) await this.store.savePages(pages.map(stripTransient));
+      if (pages.length) await this.store.savePages(pages);
       if (deleted.length) await this.store.deletePages(deleted);
-      pages.forEach((p) => this.knownRemote.add(p.id));
-      deleted.forEach((id) => this.knownRemote.delete(id));
-      this.lastSaved = Date.now();
+      const now = Date.now();
+      pages.forEach((p) => {
+        this.knownRemote.add(p.id);
+        this.savedAt.set(p.id, now);
+      });
+      deleted.forEach((id) => {
+        this.knownRemote.delete(id);
+        this.savedAt.set(id, now);
+      });
+      this.lastSaved = now;
       this.retryDelay = 4000;
-      this.setSync(this.dirty.size ? 'pending' : 'saved');
+      this.setSync(this.dirty.size && [...this.dirty].some((id) => !this.tooLarge.has(id)) ? 'pending' : 'saved');
       this.cacheSoon();
     } catch (err) {
-      ids.forEach((id) => this.dirty.add(id));
+      sent.forEach((id) => this.dirty.add(id));
       this.setSync('offline', err);
       this.cacheSoon();
       clearTimeout(this.retryTimer);
@@ -269,23 +315,56 @@ export class App {
       known: [...this.knownRemote],
       dirty: [...this.dirty],
       lastSync: this.lastSync,
+      v: 2,
     });
+  }
+
+  isEditing(id) {
+    return !!(this.editor && this.editor.page.id === id && this.editor.root.contains(document.activeElement)) || (this.titleEl && document.activeElement === this.titleEl && this.currentId === id);
+  }
+
+  // Übernimmt den Serverstand in das bestehende Objekt (Referenzen in Editor/Ansichten bleiben gültig)
+  applyRemote(id, remote) {
+    const local = this.pages.get(id);
+    if (local) {
+      for (const k of Object.keys(local)) delete local[k];
+      Object.assign(local, remote);
+    } else this.pages.set(id, remote);
+  }
+
+  // Zurückgestellte Serverstände anwenden (nach dem Tippen)
+  applyDeferred() {
+    if (!this.deferred.size) return;
+    let changedCurrent = false;
+    for (const [id, remote] of [...this.deferred]) {
+      if (this.isEditing(id)) continue;
+      this.deferred.delete(id);
+      const local = this.pages.get(id);
+      if (this.dirty.has(id) || (local && (local.updatedAt || 0) >= (remote.updatedAt || 0))) continue;
+      this.applyRemote(id, remote);
+      if (id === this.currentId) changedCurrent = true;
+    }
+    this._renderNav();
+    if (changedCurrent) this.route(true);
   }
 
   async sync(initial = false) {
     if (!this.store || this.syncing) return;
     if (!initial && Date.now() - (this.lastSyncAt || 0) < 8000) return;
     this.syncing = true;
+    const startedAt = Date.now();
+    const knownBefore = new Set(this.knownRemote);
     try {
-      const since = initial && !this.pages.size ? 0 : Math.max(0, this.lastSync - 5 * 60000);
+      const since = initial && !this.pages.size ? 0 : this.lastSync;
       const rows = await this.store.loadAll(since);
       this.lastSyncAt = Date.now();
       let changed = false;
+      let changedCurrent = false;
       const remoteIds = new Set();
-      let maxTs = this.lastSync;
+      let maxRev = this.lastSync;
       for (const row of rows) {
         remoteIds.add(row.id);
-        maxTs = Math.max(maxTs, row.updatedAt || 0);
+        maxRev = Math.max(maxRev, row.rev || 0);
         if (!row.data) continue;
         let p;
         try {
@@ -294,27 +373,34 @@ export class App {
           continue;
         }
         const local = this.pages.get(row.id);
-        if (!local || (!this.dirty.has(row.id) && (p.updatedAt || row.updatedAt) > (local.updatedAt || 0))) {
-          this.pages.set(row.id, p);
-          changed = true;
-          if (row.id === this.currentId) this.remoteChangedCurrent = true;
+        const remoteTs = p.updatedAt || row.updatedAt || 0;
+        if (local && (this.dirty.has(row.id) || remoteTs <= (local.updatedAt || 0))) continue;
+        if (local && this.isEditing(row.id)) {
+          this.deferred.set(row.id, p);
+          continue;
         }
+        this.applyRemote(row.id, p);
+        this.tooLarge.delete(row.id);
+        changed = true;
+        if (row.id === this.currentId) changedCurrent = true;
       }
-      // anderswo gelöschte Seiten entfernen
+      // Anderswo gelöschte Seiten entfernen – nur was vor dieser Abfrage bekannt war
+      // und seitdem nicht von hier gespeichert wurde
       for (const id of [...this.pages.keys()]) {
-        if (!remoteIds.has(id) && this.knownRemote.has(id) && !this.dirty.has(id)) {
-          this.pages.delete(id);
-          changed = true;
-        }
+        if (remoteIds.has(id) || !knownBefore.has(id) || this.dirty.has(id)) continue;
+        if ((this.savedAt.get(id) || 0) >= startedAt) continue;
+        if (this.isEditing(id)) continue;
+        this.pages.delete(id);
+        changed = true;
+        if (id === this.currentId) changedCurrent = true;
       }
-      this.knownRemote = remoteIds;
-      this.lastSync = maxTs;
+      const known = new Set(remoteIds);
+      for (const [id, t] of this.savedAt) if (t >= startedAt && this.pages.has(id)) known.add(id);
+      this.knownRemote = known;
+      this.lastSync = maxRev;
       if (changed) {
         this._renderNav();
-        if (this.remoteChangedCurrent && !(this.editor && this.editor.root.contains(document.activeElement))) {
-          this.remoteChangedCurrent = false;
-          this.route(true);
-        } else if (!this.currentId || this.view !== 'page') this.route(true);
+        if (changedCurrent || !this.currentId || this.view !== 'page') this.route(true);
         this.cacheSoon();
       }
       if (!this.dirty.size) this.setSync('saved');
@@ -340,7 +426,7 @@ export class App {
       idle: ['', ''],
       pending: ['pending', 'Nicht gespeichert'],
       syncing: ['syncing', 'Speichert …'],
-      saved: ['saved', long ? 'Gespeichert in ' + (this.store ? this.store.label : '') : 'Gespeichert'],
+      saved: ['saved', long ? (this.store && this.store.kind === 'local' ? 'Nur in diesem Browser gespeichert' : 'Gespeichert in ' + (this.store ? this.store.label : 'Cloudflare')) : 'Gespeichert'],
       offline: ['offline', 'Offline – wird später gespeichert'],
     };
     const [cls, text] = map[this.syncState] || map.idle;
@@ -523,9 +609,9 @@ export class App {
     this._renderNav();
   }
 
-  restorePage(id) {
+  restorePage(id, opts = {}) {
     const p = this.getPage(id);
-    if (!p) return;
+    if (!p || !p.trashed) return;
     p.trashed = 0;
     if (p.parentId) {
       const parent = this.getPage(p.parentId);
@@ -534,7 +620,7 @@ export class App {
     this.touch(p);
     this._renderNav();
     if (this.view === 'trash') this.route(true);
-    toast(`„${pageTitle(p)}“ wiederhergestellt`);
+    if (!opts.silent) toast(`„${pageTitle(p)}“ wiederhergestellt`);
   }
 
   deleteForever(id) {
@@ -669,17 +755,24 @@ export class App {
   // ---------------------------------------------------------------------
   // Navigation
   // ---------------------------------------------------------------------
+  // Synchron rendern: iOS öffnet die Tastatur nur, wenn focus() noch im Tipp-Ereignis passiert
   navigate(id, opts = {}) {
     this.pendingFocusTitle = !!opts.focusTitle;
     closeAllPopovers();
     if (location.hash === '#' + id) this.route(true);
-    else location.hash = id;
+    else {
+      location.hash = id;
+      this.route();
+    }
   }
 
   goView(v) {
     closeAllPopovers();
     if (location.hash === '#' + v) this.route(true);
-    else location.hash = v;
+    else {
+      location.hash = v;
+      this.route();
+    }
   }
 
   goHome() {
@@ -706,6 +799,7 @@ export class App {
     } else if (views[hash]) view = views[hash];
     else id = hash;
 
+    if (view === 'notes' && !isNarrow()) view = 'today';
     if (view === 'page' && (!id || !this.pages.has(id))) {
       if (!this.pages.size) return;
       view = isNarrow() ? 'notes' : 'today';
@@ -735,15 +829,21 @@ export class App {
     this._renderNav();
     this.toolbars.update();
     if (isNarrow() && this.sidebarOverlay) this.closeSidebarOverlay();
+    this.setCompactOpen(false);
   }
 
   leavePage() {
+    const ae = document.activeElement;
+    if (ae && ae !== document.body && this.content.contains(ae)) ae.blur();
     if (this.editor) {
+      this.toolbars.onBlur(this.editor);
       this.editor.destroy();
       this.editor = null;
     }
+    this.titleEl = null;
     this.dbview = null;
     this.flushSave();
+    if (this.deferred.size) setTimeout(() => this.applyDeferred(), 0);
   }
 
   // ---------------------------------------------------------------------
@@ -754,7 +854,7 @@ export class App {
     // Titelbild
     if (p.cover) {
       const cover = h('div', { class: 'cover' });
-      if (p.cover.type === 'image') cover.style.backgroundImage = `url("${p.cover.value}")`;
+      if (p.cover.type === 'image' && /^data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+$/.test(p.cover.value)) cover.style.backgroundImage = `url("${p.cover.value}")`;
       else cover.style.background = COVERS[p.cover.value] || COVERS.dusk;
       cover.appendChild(
         h('div', { class: 'cover-actions' }, h('button', { class: 'glass-chip', type: 'button', onclick: (e) => this.coverMenu(e.currentTarget, p) }, 'Titelbild ändern'))
@@ -834,7 +934,7 @@ export class App {
     this.updateMeta();
     if (this.pendingFocusTitle) {
       this.pendingFocusTitle = false;
-      setTimeout(() => this.focusTitle(), 30);
+      this.focusTitle();
     }
   }
 
@@ -1034,7 +1134,7 @@ export class App {
       }
     } else {
       left.appendChild(
-        h('button', { class: 'glass-btn', type: 'button', 'aria-label': this.sidebarOpen ? 'Seitenleiste ausblenden' : 'Seitenleiste einblenden', title: 'Seitenleiste (' + (navigator.platform.includes('Mac') ? '⌘' : 'Strg+') + '\\)', onclick: () => this.toggleSidebar() }, svg(I.sidebar))
+        h('button', { class: 'glass-btn', type: 'button', 'aria-label': document.body.classList.contains('is-compact') ? 'Seitenleiste zeigen' : this.sidebarOpen ? 'Seitenleiste ausblenden' : 'Seitenleiste einblenden', title: 'Seitenleiste (' + (navigator.platform.includes('Mac') ? '⌘' : 'Strg+') + '\\)', onclick: () => this.toggleSidebar() }, svg(I.sidebar))
       );
       if (p) {
         const crumbs = h('nav', { class: 'crumbs', 'aria-label': 'Pfad' });
@@ -1074,8 +1174,16 @@ export class App {
     this.navbar.classList.toggle('show-title', !!showTitle);
   }
 
+  setCompactOpen(open) {
+    document.body.classList.toggle('compact-open', !!open);
+  }
+
   toggleSidebar() {
     if (isNarrow()) return;
+    if (document.body.classList.contains('is-compact')) {
+      this.setCompactOpen(!document.body.classList.contains('compact-open'));
+      return;
+    }
     this.sidebarOpen = !this.sidebarOpen;
     storageSet('lr:sidebar', this.sidebarOpen);
     this.applyLayoutClasses();
@@ -1317,6 +1425,7 @@ export class App {
   }
   onEditorBlur(ed) {
     this.toolbars.onBlur(ed);
+    setTimeout(() => this.applyDeferred(), 200);
   }
   onBlockSelection(ed) {
     this.toolbars.onSelection(ed);
@@ -1436,11 +1545,23 @@ function safeName(s) {
 
 // Seitenbaum: Ziehen zum Umsortieren/Verschachteln (Maus sofort, Touch nach langem Drücken)
 function attachTreeDrag(app, row, p, flat) {
-  if (flat) {
-    // Favoriten: nur langes Drücken → Menü
-    attachLongPress(row, () => app.treeMenu(row.querySelector('.tree-act') || row, p));
-    return;
-  }
+  row.style.webkitTouchCallout = 'none';
+  // Klick nach langem Drücken unterdrücken (sonst öffnet sich die Seite)
+  row.addEventListener(
+    'click',
+    (e) => {
+      if (row._suppressClick) {
+        row._suppressClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    true
+  );
+  row.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (!row._menuOpen) app.treeMenu(row.querySelector('.tree-act') || row, p);
+  });
   row.addEventListener('pointerdown', (e) => {
     if (e.target.closest('.tree-toggle, .tree-act')) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -1452,33 +1573,36 @@ function attachTreeDrag(app, row, p, flat) {
     let ghost = null;
     let target = null;
     let lp = null;
+    row._menuOpen = false;
     const begin = () => {
+      if (flat) return;
       dragging = true;
+      closeAllPopovers();
       row.classList.add('drag-src');
       ghost = h('div', { class: 'drag-ghost' }, (p.icon ? p.icon + ' ' : '') + pageTitle(p));
       document.body.appendChild(ghost);
       document.body.classList.add('is-dragging');
-      if (navigator.vibrate) navigator.vibrate(8);
     };
-    if (isTouch) lp = setTimeout(() => {
-      if (!moved) {
-        begin();
-      }
-    }, 420);
-    let moved = false;
+    // Touch: langes Drücken öffnet das Kontextmenü (wie iOS), danach Ziehen verschiebt
+    if (isTouch)
+      lp = setTimeout(() => {
+        row._menuOpen = true;
+        row._suppressClick = true;
+        if (navigator.vibrate) navigator.vibrate(8);
+        app.treeMenu(row.querySelector('.tree-act') || row, p);
+      }, 450);
     const move = (ev) => {
       if (ev.pointerId !== pid) return;
       const dist = Math.hypot(ev.clientX - sx, ev.clientY - sy);
       if (!dragging) {
-        if (dist > 6) {
-          moved = true;
-          if (isTouch) {
-            clearTimeout(lp);
-            cleanup(false);
-            return;
-          }
-          begin();
-        } else return;
+        if (dist < 8) return;
+        clearTimeout(lp);
+        if (isTouch && !row._menuOpen) {
+          cleanup();
+          return; // normales Scrollen
+        }
+        begin();
+        if (!dragging) return;
       }
       ev.preventDefault();
       ghost.style.transform = `translate(${ev.clientX + 10}px, ${ev.clientY + 6}px)`;
@@ -1501,7 +1625,8 @@ function attachTreeDrag(app, row, p, flat) {
       if (ev.pointerId !== pid) return;
       clearTimeout(lp);
       const was = dragging;
-      cleanup(true);
+      cleanup();
+      if (was) row._suppressClick = true;
       if (was && target) {
         const tp = app.getPage(target.id);
         if (!tp) return;
@@ -1513,19 +1638,15 @@ function attachTreeDrag(app, row, p, flat) {
           const next = sibs[i + 1];
           app.movePage(p.id, tp.parentId || null, next && next.id !== p.id ? next.id : null);
         }
-      } else if (was && !target) {
-        /* abgebrochen */
-      } else if (isTouch && !moved && ev.type === 'pointerup' && Date.now() - t0 > 420) {
-        /* langes Drücken ohne Ziehen → Menü */
-        app.treeMenu(row.querySelector('.tree-act') || row, p);
       }
+      setTimeout(() => (row._menuOpen = false), 400);
     };
-    const t0 = Date.now();
     const cleanup = () => {
       window.removeEventListener('pointermove', move, true);
       window.removeEventListener('pointerup', up, true);
       window.removeEventListener('pointercancel', up, true);
       if (ghost) ghost.remove();
+      ghost = null;
       row.classList.remove('drag-src');
       document.body.classList.remove('is-dragging');
       document.querySelectorAll('.tree-row.drop-before, .tree-row.drop-after, .tree-row.drop-into').forEach((x) => x.classList.remove('drop-before', 'drop-after', 'drop-into'));
@@ -1534,13 +1655,13 @@ function attachTreeDrag(app, row, p, flat) {
     window.addEventListener('pointerup', up, true);
     window.addEventListener('pointercancel', up, true);
   });
-  row.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    app.treeMenu(row.querySelector('.tree-act') || row, p);
-  });
-  row.addEventListener('touchmove', (e) => {
-    if (document.body.classList.contains('is-dragging')) e.preventDefault();
-  }, { passive: false });
+  row.addEventListener(
+    'touchmove',
+    (e) => {
+      if (document.body.classList.contains('is-dragging')) e.preventDefault();
+    },
+    { passive: false }
+  );
 }
 
 function attachLongPress(el, fn) {

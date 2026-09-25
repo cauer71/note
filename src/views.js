@@ -7,6 +7,7 @@ import { pageTitle, newBlock } from './model.js';
 import { collectAllCards, isDue, studySession, renderTimerCard } from './learn.js';
 import { TEMPLATES } from './templates.js';
 import { markdownToBlocks } from './markdown.js';
+import { setFingerDrawing, fingerDrawing } from './drawing.js';
 import { htmlToText } from './inline.js';
 
 function largeTitle(title, sub) {
@@ -354,7 +355,7 @@ export function openSearch(app) {
   const bar = h('div', { class: 'search-bar' }, h('label', { class: 'search-field active' }, svg(I.search), input), h('button', { class: 'btn btn-plain', type: 'button', onclick: () => m.close() }, 'Abbrechen'));
   const m = modal(h('div', { class: 'search-wrap' }, bar, results), { class: 'modal-search' });
   draw();
-  setTimeout(() => input.focus(), 30);
+  input.focus();
 }
 
 function escape(s) {
@@ -362,16 +363,18 @@ function escape(s) {
 }
 
 function highlight(text, q) {
-  const safe = escape(text);
+  // erst auf dem Rohtext suchen, dann die Stücke einzeln escapen (Entities bleiben heil)
+  const raw = String(text || '');
   const terms = normalizeSearch(q).trim().split(/\s+/).filter((t) => t.length > 1);
-  if (!terms.length) return safe;
-  // einfache Hervorhebung (ohne Akzent-Normalisierung im Original)
-  let out = safe;
-  for (const t of terms) {
-    const re = new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
-    out = out.replace(re, '<mark>$1</mark>');
+  if (!terms.length) return escape(raw);
+  const re = new RegExp('(' + terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+  let out = '';
+  let last = 0;
+  for (const m of raw.matchAll(re)) {
+    out += escape(raw.slice(last, m.index)) + '<mark>' + escape(m[0]) + '</mark>';
+    last = m.index + m[0].length;
   }
-  return out;
+  return out + escape(raw.slice(last));
 }
 
 // ---------------------------------------------------------------------------
@@ -403,13 +406,10 @@ export function openSettings(app) {
     }
     return s;
   };
-  const tool = storageGet('lr:tool', {});
-  const penOnly = h('input', { type: 'checkbox', class: 'switch', checked: !tool.finger, 'aria-label': 'Nur Stift zeichnet' });
-  penOnly.checked = !tool.finger;
+  const penOnly = h('input', { type: 'checkbox', class: 'switch', 'aria-label': 'Nur Stift zeichnet' });
+  penOnly.checked = !fingerDrawing();
   penOnly.addEventListener('change', () => {
-    const t = storageGet('lr:tool', {});
-    t.finger = !penOnly.checked;
-    storageSet('lr:tool', t);
+    setFingerDrawing(!penOnly.checked);
     toast(penOnly.checked ? 'Nur der Stift zeichnet – Finger scrollen' : 'Finger zeichnen jetzt auch');
   });
   const wsName = h('input', { class: 'input input-inline', type: 'text', value: app.workspaceName(), 'aria-label': 'Name des Lernraums' });

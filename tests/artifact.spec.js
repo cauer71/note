@@ -20,15 +20,20 @@ function mockClaude({ mcpFail = false, seedRows = null } = {}) {
         const sql = input.sql; const p = input.params || [];
         const db = load();
         if (/^CREATE TABLE/i.test(sql)) return ok([]);
-        if (/^SELECT id, updated_at, length\\(data\\) AS size FROM pages$/i.test(sql)) {
-          return ok(Object.values(db).map((r) => ({ id: r.id, updated_at: r.updated_at, size: r.data.length })));
+        if (/^SELECT id, updated_at, rev, length\\(data\\) AS size FROM pages$/i.test(sql)) {
+          return ok(Object.values(db).map((r) => ({ id: r.id, updated_at: r.updated_at, rev: r.rev || 0, size: r.data.length })));
         }
-        if (/^SELECT id, updated_at, data FROM pages WHERE id IN/i.test(sql)) {
+        if (/^SELECT id, updated_at, rev, data FROM pages WHERE id IN/i.test(sql)) {
           window.__calls.batches = (window.__calls.batches || 0) + 1;
-          return ok(p.map((id) => db[id]).filter(Boolean).map((r) => ({ id: r.id, updated_at: r.updated_at, data: r.data })));
+          return ok(p.map((id) => db[id]).filter(Boolean).map((r) => ({ id: r.id, updated_at: r.updated_at, rev: r.rev || 0, data: r.data })));
         }
         if (/^INSERT INTO pages/i.test(sql)) {
-          for (let i = 0; i < p.length; i += 3) db[p[i]] = { id: p[i], data: p[i + 1], updated_at: Number(p[i + 2]) };
+          if (!/julianday\\('now'\\)/.test(sql)) throw { code: 'tool_error', message: 'rev fehlt' };
+          for (let i = 0; i < p.length; i += 3) {
+            const cur = db[p[i]];
+            if (cur && cur.updated_at > Number(p[i + 2])) continue;
+            db[p[i]] = { id: p[i], data: p[i + 1], updated_at: Number(p[i + 2]), rev: Date.now() };
+          }
           save(db); return ok([]);
         }
         if (/^DELETE FROM pages/i.test(sql)) { for (const id of p) delete db[id]; save(db); return ok([]); }
@@ -86,7 +91,7 @@ test.describe('Claude-Artifact', () => {
 
   test('Lädt vorhandene Daten aus D1 ohne neu zu säen', async ({ page }) => {
     const pageRow = { id: 'p-eigene', kind: 'page', title: 'Meine D1-Seite', icon: '🧪', blocks: [{ id: 'b-1', type: 'p', text: 'Aus Cloudflare', indent: 0 }], parentId: null, trashed: 0, order: 1, createdAt: 1, updatedAt: 2 };
-    await openArtifact(page, { seedRows: { 'p-eigene': { id: 'p-eigene', data: JSON.stringify(pageRow), updated_at: 2 } } }, 'p-eigene');
+    await openArtifact(page, { seedRows: { 'p-eigene': { id: 'p-eigene', data: JSON.stringify(pageRow), updated_at: 2, rev: 5 } } }, 'p-eigene');
     await expect(page.locator('.page-title')).toHaveText('Meine D1-Seite');
     expect(await page.evaluate(() => window.lernraum.pages.size)).toBe(1);
   });

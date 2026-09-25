@@ -8,7 +8,10 @@ const JSON_HEADERS = {
   'cache-control': 'no-store',
 };
 
-const MAX_PAGE_BYTES = 1_800_000; // D1 erlaubt bis 2 MB pro Zeile
+const MAX_PAGE_BYTES = 1_900_000; // D1 erlaubt bis 2 MB pro Zeile (in Bytes)
+const MAX_BATCH = 40; // D1: höchstens 50 Abfragen pro Aufruf (Free-Plan)
+const MAX_PARAMS = 90; // D1: höchstens 100 gebundene Parameter
+const encoder = new TextEncoder();
 
 export default {
   async fetch(request, env, ctx) {
@@ -37,9 +40,10 @@ async function handleApi(request, env, url, identity) {
   }
 
   if (path === '/api/pages' && method === 'GET') {
+    // since = zuletzt gesehene Revision; Zeilen ab dieser Revision kommen mit Inhalt
     const since = Number(url.searchParams.get('since') || 0) || 0;
     const { results } = await env.DB.prepare(
-      'SELECT id, updated_at, CASE WHEN updated_at > ?1 THEN data END AS data FROM pages'
+      'SELECT id, updated_at, rev, CASE WHEN rev >= ?1 THEN data END AS data FROM pages'
     )
       .bind(since)
       .all();
@@ -50,32 +54,40 @@ async function handleApi(request, env, url, identity) {
     const body = await readJson(request);
     const pages = Array.isArray(body && body.pages) ? body.pages : [];
     if (!pages.length) return json({ saved: 0 });
+    if (pages.length > MAX_BATCH) return json({ error: `Höchstens ${MAX_BATCH} Seiten pro Anfrage` }, 400);
+    const rev = Date.now();
     const stmts = [];
+    const tooLarge = [];
     for (const p of pages) {
       if (!p || typeof p.id !== 'string' || !p.id || typeof p.data !== 'string') {
         return json({ error: 'Ungültige Seite' }, 400);
       }
-      if (p.data.length > MAX_PAGE_BYTES) {
-        return json({ error: `Seite ${p.id} ist zu groß (max. 1,8 MB)` }, 413);
+      if (encoder.encode(p.data).length > MAX_PAGE_BYTES) {
+        tooLarge.push(p.id);
+        continue;
       }
       const ts = Number(p.updated_at) || Date.now();
+      // Ältere Stände überschreiben keine neueren (anderes Gerät war schneller)
       stmts.push(
         env.DB.prepare(
-          'INSERT INTO pages (id, data, updated_at) VALUES (?1, ?2, ?3) ' +
-            'ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'
-        ).bind(p.id, p.data, ts)
+          'INSERT INTO pages (id, data, updated_at, rev) VALUES (?1, ?2, ?3, ?4) ' +
+            'ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev ' +
+            'WHERE excluded.updated_at >= pages.updated_at'
+        ).bind(p.id, p.data, ts, rev)
       );
     }
-    await env.DB.batch(stmts);
-    return json({ saved: stmts.length });
+    if (stmts.length) await env.DB.batch(stmts);
+    return json({ saved: stmts.length, rev, tooLarge });
   }
 
   if (path === '/api/pages' && method === 'DELETE') {
     const body = await readJson(request);
     const ids = Array.isArray(body && body.ids) ? body.ids.filter((x) => typeof x === 'string') : [];
     if (!ids.length) return json({ deleted: 0 });
-    const stmts = ids.map((id) => env.DB.prepare('DELETE FROM pages WHERE id = ?1').bind(id));
-    await env.DB.batch(stmts);
+    if (ids.length > MAX_PARAMS) return json({ error: `Höchstens ${MAX_PARAMS} Seiten pro Anfrage` }, 400);
+    await env.DB.prepare(`DELETE FROM pages WHERE id IN (${ids.map((_, i) => '?' + (i + 1)).join(', ')})`)
+      .bind(...ids)
+      .run();
     return json({ deleted: ids.length });
   }
 
@@ -129,8 +141,8 @@ let certCache = { at: 0, keys: null };
 
 async function authorize(request, env) {
   if (!env.ACCESS_AUD || !env.ACCESS_TEAM_DOMAIN) {
-    // Lokale Entwicklung ohne Access
-    return { type: 'local' };
+    // Ohne Access-Konfiguration nur mit ausdrücklichem Entwicklungsschalter offen
+    return env.DEV_NO_AUTH === '1' ? { type: 'local' } : null;
   }
   const token =
     request.headers.get('cf-access-jwt-assertion') || getCookie(request, 'CF_Authorization');
@@ -161,9 +173,11 @@ function b64urlToBytes(s) {
   return out;
 }
 
-async function getKeys(env) {
+async function getKeys(env, force = false) {
   const now = Date.now();
-  if (certCache.keys && now - certCache.at < 10 * 60 * 1000) return certCache.keys;
+  const fresh = certCache.keys && now - certCache.at < 10 * 60 * 1000;
+  // Unbekannter Schlüssel (Rotation): höchstens alle 30 s neu laden
+  if (fresh && !(force && now - certCache.at > 30 * 1000)) return certCache.keys;
   const res = await fetch(`https://${env.ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`);
   if (!res.ok) throw new Error('Access-Zertifikate nicht erreichbar');
   const { keys } = await res.json();
@@ -176,8 +190,9 @@ async function verifyJwt(token, env) {
   if (!h || !p || !s) throw new Error('Token-Format');
   const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(h)));
   const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(p)));
-  const keys = await getKeys(env);
-  const jwk = keys.find((k) => k.kid === header.kid);
+  if (header.alg !== 'RS256') throw new Error('Algorithmus');
+  let jwk = (await getKeys(env)).find((k) => k.kid === header.kid);
+  if (!jwk) jwk = (await getKeys(env, true)).find((k) => k.kid === header.kid);
   if (!jwk) throw new Error('Unbekannter Schlüssel');
   const key = await crypto.subtle.importKey(
     'jwk',
@@ -196,6 +211,7 @@ async function verifyJwt(token, env) {
   const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
   if (!aud.includes(env.ACCESS_AUD)) throw new Error('Falsche Zielgruppe');
   if (payload.exp && payload.exp * 1000 < Date.now()) throw new Error('Token abgelaufen');
+  if (payload.nbf && payload.nbf * 1000 > Date.now() + 60000) throw new Error('Token noch nicht gültig');
   if (payload.iss && payload.iss !== `https://${env.ACCESS_TEAM_DOMAIN}`) throw new Error('Falscher Aussteller');
   return payload;
 }

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "dev": "npm run build && wrangler dev --local",
+    "dev": "npm run build && wrangler d1 execute notizen --local --file schema.sql && wrangler dev --local --var ACCESS_AUD: --var DEV_NO_AUTH:1",
     "test": "npm run build && playwright test",
     "seed:sql": "node scripts/seed-sql.mjs",
     "deploy": "npm run build && wrangler deploy"

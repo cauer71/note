@@ -52,10 +52,11 @@ export function htmlToBlocks(html) {
         }
       } else if (tag === 'IMG') {
         /* externe Bilder werden nicht übernommen */
+      } else if (el.querySelector('p,h1,h2,h3,h4,h5,h6,ul,ol,table,pre,blockquote,div,li,hr')) {
+        // Container (auch Google Docs' <b id="docs-internal-guid-…">) → hineingehen
+        walk(el);
       } else if (['DIV', 'SECTION', 'ARTICLE', 'MAIN', 'BODY', 'SPAN', 'FONT', 'CENTER'].includes(tag)) {
-        const hasBlock = el.querySelector('p,h1,h2,h3,h4,h5,h6,ul,ol,table,pre,blockquote,div');
-        if (hasBlock) walk(el);
-        else pushText('p', el);
+        pushText('p', el);
       } else if (['STYLE', 'SCRIPT', 'META', 'TITLE', 'HEAD', 'LINK'].includes(tag)) {
         continue;
       } else pushText('p', el);

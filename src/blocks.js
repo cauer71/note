@@ -314,6 +314,7 @@ function renderImage(ed, b) {
     document.body.appendChild(input);
     input.click();
   };
+  if (b.src && !/^(data:image\/|https:)/.test(b.src)) b.src = '';
   if (!b.src) {
     const ph = h(
       'div',
@@ -375,7 +376,7 @@ function renderTable(ed, b) {
       const tr = h('tr');
       row.forEach((cell, c) => {
         const div = h('div', { class: 'tbl-cell', contenteditable: 'true', 'data-r': r, 'data-c': c, spellcheck: 'true' });
-        div.innerHTML = cell || '';
+        div.innerHTML = sanitizeInline(cell || '');
         tr.appendChild(h(r === 0 && b.header ? 'th' : 'td', {}, div));
       });
       table.appendChild(tr);

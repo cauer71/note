@@ -1350,11 +1350,6 @@ body.is-narrow.kb-open .tabbar {
   margin-left: calc(-50vw + 50%);
   margin-right: calc(-50vw + 50%);
 }
-body:not(.is-narrow):not(.sidebar-closed) .page .cover {
-  margin-left: -48px;
-  margin-right: -48px;
-  border-radius: 0 0 28px 28px;
-}
 .cover-actions {
   position: absolute;
   right: 16px;
@@ -1497,7 +1492,9 @@ body.is-touch .page-head-add {
 .row-date {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
 }
 .cell-date-native {
   border: 0;
@@ -1509,6 +1506,11 @@ body.is-touch .page-head-add {
 }
 .row-date-rel {
   font-size: 14px;
+  white-space: nowrap;
+}
+.cell-date-native {
+  max-width: 100%;
+  min-width: 0;
 }
 .overdue {
   color: var(--red) !important;
@@ -5620,8 +5622,45 @@ body.is-touch .page-head.is-new .page-head-add {
   display: flex;
 }
 /* Seiten-Leiste auf dem iPad mittig über dem Inhalt, nicht über der Seitenleiste */
-body:not(.is-narrow):not(.sidebar-closed) .page-toolbar {
+body:not(.is-narrow):not(.is-compact):not(.sidebar-closed) .page-toolbar {
   left: calc(var(--sb-w) + 10px);
+}
+/* iPad hochkant: Seitenleiste als schwebendes Overlay */
+.sb-scrim {
+  display: none;
+}
+body.is-compact .sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 320px;
+  z-index: 90;
+  transform: translateX(calc(-100% - 20px));
+  transition: transform 0.4s var(--ease);
+  margin: 0 !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+body.is-compact.compact-open .sidebar {
+  transform: none;
+}
+body.is-compact .sidebar .sb {
+  background-color: var(--glass-bg-strong);
+  box-shadow: var(--glass-hi), var(--shadow-pop);
+}
+body.is-compact.compact-open .sb-scrim {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+  background: rgba(0, 0, 0, 0.18);
+  animation: fade 0.25s ease;
+}
+body:not(.is-narrow):not(.is-compact):not(.sidebar-closed) .page .cover {
+  margin-left: -48px;
+  margin-right: -48px;
+  border-radius: 0 0 28px 28px;
 }
 body.ai-open:not(.is-narrow) .page-toolbar {
   right: 440px;

@@ -2,10 +2,24 @@
 //  - ApiStore:   gehostete Version auf Cloudflare (Worker + D1, same origin)
 //  - McpD1Store: Claude-Artifact, spricht D1 über den Cloudflare-Connector (mcp)
 //  - LocalStore: Fallback im Browser (IndexedDB), z. B. für Tests/Offline
-// Alle Adapter implementieren: init(), loadAll(since), savePages(pages), deletePages(ids)
+// Alle Adapter: init(), loadAll(sinceRev) → [{id, updatedAt, rev, data|null}], savePages(pages), deletePages(ids)
+// rev ist eine vom Server vergebene Revision (Cloudflare-Uhr) – sie dient als Sync-Marke.
 
 const CONNECTOR = 'Cloudflare Developer Platform';
 const TOOL = 'd1_database_query';
+export const MAX_PAGE_BYTES = 1_900_000;
+const encoder = new TextEncoder();
+
+export function pageBytes(json) {
+  // schnell: nur große Seiten genau messen
+  return json.length < 400000 ? json.length * 3 : encoder.encode(json).length;
+}
+
+function chunks(arr, n) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+}
 
 export class ApiStore {
   constructor() {
@@ -24,39 +38,46 @@ export class ApiStore {
     const r = await fetch('/api/pages?since=' + since, { credentials: 'same-origin', cache: 'no-store' });
     if (!r.ok) throw Object.assign(new Error('Laden fehlgeschlagen (' + r.status + ')'), { code: r.status === 401 ? 'auth' : 'net' });
     const j = await r.json();
-    return j.pages.map((row) => ({ id: row.id, updatedAt: row.updated_at, data: row.data }));
+    return j.pages.map((row) => ({ id: row.id, updatedAt: Number(row.updated_at), rev: Number(row.rev) || 0, data: row.data }));
   }
   async savePages(pages) {
-    const body = JSON.stringify({
-      pages: pages.map((p) => ({ id: p.id, data: JSON.stringify(p), updated_at: p.updatedAt })),
-    });
-    const r = await fetch('/api/pages', {
-      method: 'PUT',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body,
-      keepalive: body.length < 60000,
-    });
-    if (!r.ok) {
-      let msg = 'Speichern fehlgeschlagen (' + r.status + ')';
-      try {
-        msg = (await r.json()).error || msg;
-      } catch {
-        /* egal */
+    for (const part of chunks(pages, 40)) {
+      const body = JSON.stringify({
+        pages: part.map((p) => ({ id: p.id, data: JSON.stringify(p), updated_at: p.updatedAt })),
+      });
+      const r = await fetch('/api/pages', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body,
+        keepalive: body.length < 60000,
+      });
+      if (!r.ok) {
+        let msg = 'Speichern fehlgeschlagen (' + r.status + ')';
+        try {
+          msg = (await r.json()).error || msg;
+        } catch {
+          /* egal */
+        }
+        throw Object.assign(new Error(msg), { code: r.status === 401 ? 'auth' : 'net' });
       }
-      throw Object.assign(new Error(msg), { code: r.status === 401 ? 'auth' : 'net' });
     }
   }
   async deletePages(ids) {
-    const r = await fetch('/api/pages', {
-      method: 'DELETE',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ids }),
-    });
-    if (!r.ok) throw new Error('Löschen fehlgeschlagen');
+    for (const part of chunks(ids, 90)) {
+      const r = await fetch('/api/pages', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: part }),
+      });
+      if (!r.ok) throw new Error('Löschen fehlgeschlagen');
+    }
   }
 }
+
+// Revision direkt in D1 aus der Serverzeit berechnen (Millisekunden)
+const SQL_REV = "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
 
 export class McpD1Store {
   constructor(mcp, databaseId) {
@@ -82,22 +103,20 @@ export class McpD1Store {
     return (first && first.results) || [];
   }
   async init() {
-    await this.q(
-      'CREATE TABLE IF NOT EXISTS pages (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL)'
-    );
+    await this.q('CREATE TABLE IF NOT EXISTS pages (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL, rev INTEGER NOT NULL DEFAULT 0)');
     return true;
   }
   async loadAll(since = 0) {
-    // 1) nur IDs, Zeitstempel und Größe – 2) geänderte Seiten paketweise (Antworten klein halten)
-    const meta = await this.q('SELECT id, updated_at, length(data) AS size FROM pages');
-    const out = new Map(meta.map((r) => [r.id, { id: r.id, updatedAt: Number(r.updated_at), data: null }]));
-    const changed = meta.filter((r) => Number(r.updated_at) > since);
+    // 1) nur IDs, Revisionen und Größe – 2) geänderte Seiten paketweise (Antworten klein halten)
+    const meta = await this.q('SELECT id, updated_at, rev, length(data) AS size FROM pages');
+    const out = new Map(meta.map((r) => [r.id, { id: r.id, updatedAt: Number(r.updated_at), rev: Number(r.rev) || 0, data: null }]));
+    const changed = meta.filter((r) => (Number(r.rev) || 0) >= since);
     let batch = [];
     let size = 0;
     const flush = async () => {
       if (!batch.length) return;
-      const rows = await this.q(`SELECT id, updated_at, data FROM pages WHERE id IN (${batch.map(() => '?').join(', ')})`, batch);
-      for (const r of rows) out.set(r.id, { id: r.id, updatedAt: Number(r.updated_at), data: r.data });
+      const rows = await this.q(`SELECT id, updated_at, rev, data FROM pages WHERE id IN (${batch.map(() => '?').join(', ')})`, batch);
+      for (const r of rows) out.set(r.id, { id: r.id, updatedAt: Number(r.updated_at), rev: Number(r.rev) || 0, data: r.data });
       batch = [];
       size = 0;
     };
@@ -111,13 +130,13 @@ export class McpD1Store {
     return [...out.values()];
   }
   async savePages(pages) {
-    // Eine Anweisung pro Aufruf; kleine Seiten gebündelt
+    // Eine Anweisung pro Aufruf; mehrere kleine Seiten gebündelt (max. 90 Parameter)
     const batches = [];
     let cur = [];
     let size = 0;
     for (const p of pages) {
       const data = JSON.stringify(p);
-      if (cur.length && (size + data.length > 600000 || cur.length >= 20)) {
+      if (cur.length && (size + data.length > 600000 || cur.length >= 30)) {
         batches.push(cur);
         cur = [];
         size = 0;
@@ -127,18 +146,19 @@ export class McpD1Store {
     }
     if (cur.length) batches.push(cur);
     for (const b of batches) {
-      const values = b.map(() => '(?, ?, ?)').join(', ');
+      const values = b.map(() => `(?, ?, ?, ${SQL_REV})`).join(', ');
       const params = [];
       for (const x of b) params.push(x.id, x.data, x.ts);
       await this.q(
-        `INSERT INTO pages (id, data, updated_at) VALUES ${values} ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
+        `INSERT INTO pages (id, data, updated_at, rev) VALUES ${values} ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, rev = excluded.rev WHERE excluded.updated_at >= pages.updated_at`,
         params
       );
     }
   }
   async deletePages(ids) {
-    if (!ids.length) return;
-    await this.q(`DELETE FROM pages WHERE id IN (${ids.map(() => '?').join(', ')})`, ids);
+    for (const part of chunks(ids, 90)) {
+      await this.q(`DELETE FROM pages WHERE id IN (${part.map(() => '?').join(', ')})`, part);
+    }
   }
 }
 
@@ -210,11 +230,17 @@ export class LocalStore {
     return Object.values(this.rows).map((r) => ({
       id: r.id,
       updatedAt: r.updatedAt,
-      data: r.updatedAt > since ? r.data : null,
+      rev: r.rev || 0,
+      data: (r.rev || 0) >= since ? r.data : null,
     }));
   }
   async savePages(pages) {
-    for (const p of pages) this.rows[p.id] = { id: p.id, updatedAt: p.updatedAt, data: JSON.stringify(p) };
+    const rev = Date.now();
+    for (const p of pages) {
+      const cur = this.rows[p.id];
+      if (cur && cur.updatedAt > p.updatedAt) continue;
+      this.rows[p.id] = { id: p.id, updatedAt: p.updatedAt, rev, data: JSON.stringify(p) };
+    }
     await kvSet(this.key, this.rows);
   }
   async deletePages(ids) {
