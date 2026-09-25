@@ -420,7 +420,7 @@ export class AI {
   // /ki im Editor: Claude schreibt an dieser Stelle
   inlineWrite(ed, b) {
     const el = ed.els.get(b.id);
-    const box = h('div', { class: 'ai-inline glass-card' });
+    const box = h('div', { class: 'ai-inline' });
     const input = h('textarea', { class: 'ai-inline-input', rows: '1', placeholder: 'Was soll Claude schreiben? z. B. „Gliederung für die Hausarbeit“' });
     const out = h('div', { class: 'ai-result md', hidden: true });
     const suggestions = h(

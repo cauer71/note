@@ -20,6 +20,8 @@ import { htmlToText } from './inline.js';
 import { APP_NAME, SPLASH_BG, iconSvg, versionText } from './brand.js';
 
 const LOGO = iconSvg({ id: 'logo', rounded: true });
+// Gemeinsamer Zwischenspeicher aus der Zeit vor den Arbeitsbereichen (nur noch zum Übernehmen)
+const LEGACY_CACHE = 'cache:api';
 
 export const COVERS = {
   dusk: 'linear-gradient(135deg, #5856d6 0%, #af52de 55%, #ff2d55 100%)',
@@ -137,28 +139,28 @@ export class App {
         if (!store) continue;
         this.setSync('syncing');
         this.storeReady = false;
-        // Schnellstart aus Cache (Arbeitsbereich vom letzten Mal – bestätigt erst init())
+        // Schnellstart aus dem Zwischenspeicher des zuletzt angemeldeten Arbeitsbereichs: sofort laden
+        // (inkl. nicht gespeicherter Änderungen), aber erst zeigen, wenn die Anmeldung bestätigt ist –
+        // sonst sähe an einem geteilten Gerät die nächste Person kurz die Notizen der vorherigen.
+        // Die Wartezeit fällt in die Startanimation; offline bzw. bei langsamem Netz nach spätestens 2,5 s.
         const cacheKey = 'cache:' + (store.cacheKey || store.kind);
         const cached = await kvGet(cacheKey);
         this.store = store;
         this.cacheKey = cacheKey;
-        // Unbekannt, wer angemeldet ist (erster Start nach den Arbeitsbereichen): Zwischenspeicher erst
-        // nach der Anmeldung zeigen – außer offline, dann als Notlösung (gespeichert wird erst nach Bestätigung)
-        const verifyFirst = store.kind === 'cloudflare' && store.expectsWorkspace === false;
-        const showCached = () => {
-          if (!cached || !cached.pages || this.pages.size) return;
-          this.loadCache(cached);
-          this._renderNav();
-          this.route();
-          if (this.pages.size) window.__splash?.done();
-        };
-        if (!verifyFirst) showCached();
-        try {
-          await this.ensureStoreReady();
-        } catch (err) {
-          if (verifyFirst && this.store === store && err.code !== 'workspace' && err.code !== 'auth') showCached();
-          throw err;
+        if (cached && cached.pages && !this.pages.size) this.loadCache(cached);
+        const ready = this.ensureStoreReady();
+        ready.catch(() => {});
+        if (this.pages.size) {
+          let authFailed = false;
+          const confirmed = (this._confirming || Promise.resolve()).catch((err) => (authFailed = err.code === 'auth'));
+          await Promise.race([confirmed, new Promise((r) => setTimeout(r, store.verifiesIdentity ? 2500 : 0))]);
+          if (this.store === store && this.pages.size && !authFailed) {
+            this._renderNav();
+            this.route();
+            window.__splash?.done();
+          }
         }
+        await ready;
         if (!this.pages.size && store.kind === 'local') this.seed();
         else if (!this.pages.size && !storageGet('lr:seeded:' + this.cacheKey, false)) this.seed();
         storageSet('lr:seeded:' + this.cacheKey, true);
@@ -168,10 +170,21 @@ export class App {
         return;
       } catch (err) {
         errors.push(err);
-        if (this.pages.size && store && this.store === store && err.code !== 'workspace') {
-          // Offline mit Cache – gespeichert wird, sobald der Arbeitsbereich bestätigt ist (ensureStoreReady)
+        if (err.code === 'workspace') return this.onWorkspaceChanged(err.workspace);
+        if (this.pages.size && store && this.store === store) {
+          // Offline mit Zwischenspeicher – gespeichert wird, sobald die Anmeldung bestätigt ist
           this.setSync('offline');
           this.showBanner(offlineText(err), { retry: true });
+          return;
+        }
+        if (store && store.kind === 'cloudflare' && !store.expectsWorkspace && err.code !== 'auth' && (await kvGet(LEGACY_CACHE))) {
+          // Erster Start nach den Arbeitsbereichen, aber offline: nichts Fremdes zeigen und nicht auf den
+          // lokalen Notspeicher ausweichen – einmal online anmelden
+          this.store = null;
+          this.resetData();
+          this.setSync('offline');
+          this.showBanner('Keine Verbindung – zum ersten Start nach dem Update braucht Notes einmal Internet.', { retry: true });
+          window.__splash?.done();
           return;
         }
         this.store = null;
@@ -190,54 +203,55 @@ export class App {
     this.showBanner('Nur in diesem Browser gespeichert. ' + (errors.length ? offlineText(errors[errors.length - 1]) : ''), { retry: errors.length > 0 });
   }
 
-  // Speicher anmelden und Arbeitsbereich bestätigen; erst danach wird gespeichert oder abgeglichen.
-  // Ist inzwischen jemand anderes angemeldet, kommt dessen Zwischenspeicher zum Zug.
+  // Speicher anmelden und Arbeitsbereich bestätigen (confirmStore), danach erster Abgleich.
+  // Erst dann wird gespeichert oder abgeglichen.
   ensureStoreReady() {
     if (this.storeReady) return Promise.resolve();
     if (!this._readying) {
       const store = this.store;
       this._readying = (async () => {
-        await store.init();
+        await this.confirmStore(store);
         if (store !== this.store) return;
-        const key = 'cache:' + (store.cacheKey || store.kind);
-        if (key !== this.cacheKey) await this.switchCache(key, store);
-        if (store.workspace) storageSet('lr:lastWorkspace', store.workspace);
-        this.storeReady = true;
         await this.sync(true);
       })().finally(() => (this._readying = null));
     }
     return this._readying;
   }
 
+  confirmStore(store) {
+    if (!this._confirming) {
+      this._confirming = (async () => {
+        await store.init();
+        if (store !== this.store) return;
+        const key = 'cache:' + (store.cacheKey || store.kind);
+        if (key !== this.cacheKey) await this.switchCache(key, store);
+        if (store.workspace) storageSet('lr:lastWorkspace', store.workspace);
+        this.storeReady = true;
+      })().finally(() => (this._confirming = null));
+    }
+    return this._confirming;
+  }
+
+  // Angemeldet ist ein anderer Arbeitsbereich als erwartet → dessen Zwischenspeicher nehmen
   async switchCache(key, store) {
-    const LEGACY = 'cache:api'; // gemeinsamer Zwischenspeicher aus der Zeit vor den Arbeitsbereichen
-    const from = this.cacheKey;
     const loaded = this.pages.size > 0;
+    if (loaded) this.resetData(); // gehört dem zuletzt angemeldeten Arbeitsbereich, nicht diesem
     let adoptLegacy = false;
-    if (loaded && from === LEGACY && store.legacy) {
-      // gehört dem bisherigen (einzigen) Arbeitsbereich → übernehmen, inkl. nicht gespeicherter Änderungen
-      adoptLegacy = true;
-    } else {
-      if (loaded) this.resetData();
-      const cached = await kvGet(key);
-      if (cached && cached.pages) this.loadCache(cached);
-      else if (store.legacy) {
-        const old = await kvGet(LEGACY);
-        if (old && old.pages) {
-          this.loadCache(old);
-          adoptLegacy = true;
-        }
+    const cached = await kvGet(key);
+    if (cached && cached.pages) this.loadCache(cached);
+    else if (store.legacy) {
+      // gemeinsamer Zwischenspeicher aus der Zeit vor den Arbeitsbereichen: gehört dem bisherigen
+      // (einzigen) Arbeitsbereich → übernehmen, inkl. nicht gespeicherter Änderungen
+      const old = await kvGet(LEGACY_CACHE);
+      if (old && old.pages) {
+        this.loadCache(old);
+        adoptLegacy = true;
       }
     }
     this.cacheKey = key;
-    if (adoptLegacy) {
-      await this.writeCache();
-      await kvDel(LEGACY);
-    } else if (from === LEGACY) {
-      // Fremde Notizen nicht auf dem Gerät liegen lassen – außer es gibt dort noch Ungespeichertes
-      const old = await kvGet(LEGACY);
-      if (old && !(old.dirty || []).length) await kvDel(LEGACY);
-    }
+    if (adoptLegacy) await this.writeCache();
+    // Den alten gemeinsamen Zwischenspeicher nie liegen lassen (bei anderen Personen: fremde Notizen)
+    await kvDel(LEGACY_CACHE);
     if (loaded || this.pages.size) {
       this._renderNav();
       this.route(true);
@@ -265,25 +279,28 @@ export class App {
     this.lastSync = -1;
   }
 
-  // Während der Sitzung hat sich jemand anderes angemeldet (z. B. in einem anderen Tab)
-  async onWorkspaceChanged() {
+  // Während der Sitzung hat sich jemand anderes angemeldet (z. B. in einem anderen Tab):
+  // eigenen Stand sichern und mit dem Zwischenspeicher der neuen Person neu starten
+  async onWorkspaceChanged(workspace) {
     if (this._wsReload) return;
     this._wsReload = true;
     this.saveSoon.cancel();
-    await this.writeCache();
+    if (this.storeReady) await this.writeCache();
+    storageSet('lr:lastWorkspace', workspace || '');
     location.reload();
   }
 
   // Abmelden (Cloudflare Access) – vorher speichern und die Notizen von diesem Gerät entfernen
   async logout() {
     this.flushSave();
-    for (let i = 0; i < 60 && (this.saving || this.dirty.size || this.uploading.size); i++) await new Promise((r) => setTimeout(r, 100));
-    if (this.dirty.size && !(await confirmDialog({ title: 'Nicht alles gespeichert', text: 'Einige Änderungen sind noch nicht gespeichert und gehen beim Abmelden verloren.', okLabel: 'Trotzdem abmelden', danger: true }))) return;
+    const pending = () => this.saving || this.dirty.size || this.uploading.size;
+    for (let i = 0; i < 100 && pending(); i++) await new Promise((r) => setTimeout(r, 100));
+    if (pending() && !(await confirmDialog({ title: 'Nicht alles gespeichert', text: 'Einige Änderungen sind noch nicht gespeichert und gehen beim Abmelden verloren.', okLabel: 'Trotzdem abmelden', danger: true }))) return;
     this.saveSoon.cancel();
     this.cacheSoon.cancel();
+    this._wsReload = true;
     if (this.cacheKey) await kvDel(this.cacheKey);
     storageSet('lr:lastWorkspace', '');
-    this._wsReload = true;
     location.href = '/cdn-cgi/access/logout';
   }
 
@@ -368,8 +385,9 @@ export class App {
       try {
         await this.ensureStoreReady();
       } catch (err) {
-        if (err.code === 'workspace') return this.onWorkspaceChanged();
+        if (err.code === 'workspace') return this.onWorkspaceChanged(err.workspace);
         this.setSync('offline', err);
+        this.cacheSoon(); // Offline-Änderungen sofort in IndexedDB sichern
         clearTimeout(this.retryTimer);
         this.retryTimer = setTimeout(() => this.save(), this.retryDelay);
         this.retryDelay = Math.min(120000, this.retryDelay * 2);
@@ -454,7 +472,7 @@ export class App {
     } catch (err) {
       sent.forEach((id) => this.dirty.add(id));
       if (err.code === 'workspace') {
-        this.onWorkspaceChanged();
+        this.onWorkspaceChanged(err.workspace);
         return;
       }
       this.setSync('offline', err);
@@ -561,7 +579,7 @@ export class App {
     if (!this.store || this.syncing || this._wsReload) return;
     if (!this.storeReady) {
       // offline gestartet: jetzt anmelden (gleicht danach selbst ab)
-      if (!initial) this.ensureStoreReady().catch((err) => (err.code === 'workspace' ? this.onWorkspaceChanged() : this.setSync('offline', err)));
+      if (!initial) this.ensureStoreReady().catch((err) => (err.code === 'workspace' ? this.onWorkspaceChanged(err.workspace) : this.setSync('offline', err)));
       return;
     }
     if (!initial && Date.now() - (this.lastSyncAt || 0) < 8000) return;
@@ -619,7 +637,7 @@ export class App {
       else this.setSync('saved');
     } catch (err) {
       if (initial) throw err;
-      if (err.code === 'workspace') this.onWorkspaceChanged();
+      if (err.code === 'workspace') this.onWorkspaceChanged(err.workspace);
       else this.setSync('offline', err);
     } finally {
       this.syncing = false;
@@ -1311,7 +1329,8 @@ export class App {
       { label: `${words} Wörter · bearbeitet ${relTime(p.updatedAt)}`, disabled: true },
       { label: 'Erstellt am ' + fmtDate(p.createdAt || Date.now()), disabled: true },
     ].filter(Boolean);
-    menu(anchor, items, { title: pageTitle(p), alignRight: true });
+    // iOS 26: Menü an einem Leistenknopf klappt am Knopf auf (kein Bottom-Sheet)
+    menu(anchor, items, { title: pageTitle(p), alignRight: true, sheet: false });
   }
 
   toggleArrange() {
@@ -1400,16 +1419,39 @@ export class App {
       group.appendChild(h('button', { class: 'cap-btn cap-ai', type: 'button', 'aria-label': 'Claude fragen', title: 'Claude (' + (navigator.platform.includes('Mac') ? '⌘' : 'Strg+') + 'J)', onclick: () => this.ai.openPanel() }, svg(I.sparkle)));
       group.appendChild(h('button', { class: 'cap-btn', type: 'button', 'aria-label': 'Seitenmenü', onclick: (e) => this.pageMenu(e.currentTarget, p) }, svg(I.more)));
       right.appendChild(group);
-    } else if (!narrow || this.view !== 'notes') {
-      const group = h('div', { class: 'glass-capsule' });
-      group.appendChild(h('button', { class: 'cap-btn cap-ai', type: 'button', 'aria-label': 'Claude fragen', onclick: () => this.ai.openPanel({ workspace: true }) }, svg(I.sparkle)));
-      group.appendChild(h('button', { class: 'cap-btn', type: 'button', 'aria-label': 'Neue Seite', onclick: () => this.createPage({}) }, svg(I.pen)));
-      right.appendChild(group);
+    } else if (narrow && this.view === 'notes') {
+      // iPhone-Start: Knöpfe bleiben in der schwebenden Leiste, wenn der große Titel wegscrollt
+      right.appendChild(h('button', { class: 'glass-btn', type: 'button', 'aria-label': 'Einstellungen', onclick: () => openSettings(this) }, svg(I.settings)));
+      right.appendChild(h('button', { class: 'glass-btn glass-tint nav-compose', type: 'button', 'aria-label': 'Neue Seite', onclick: () => this.createPage({}) }, svg(I.pen)));
+    } else {
+      right.appendChild(h('button', { class: 'glass-btn nav-ai', type: 'button', 'aria-label': 'Claude fragen', onclick: () => this.ai.openPanel({ workspace: true }) }, svg(I.sparkle)));
+      right.appendChild(h('button', { class: 'glass-btn glass-tint nav-compose', type: 'button', 'aria-label': 'Neue Seite', onclick: () => this.createPage({}) }, svg(I.pen)));
     }
     nb.append(left, center, right);
     const sp = nb.querySelector('.sync-pill');
     if (sp) this.paintSync(sp);
+    this.layoutNavTitle();
     this.onScroll();
+  }
+
+  // Titel zwischen den Bedienelementen: mittig, wenn er passt, sonst verschoben und gekürzt
+  layoutNavTitle() {
+    const nb = this.navbar;
+    const title = nb && nb.querySelector('.nav-title');
+    if (!title || !isNarrow()) return;
+    const w = nb.clientWidth;
+    const nbLeft = nb.getBoundingClientRect().left;
+    const leftItem = nb.querySelector('.nav-left > :last-child');
+    const rightItems = [...nb.querySelectorAll('.nav-right > :not(.sync-pill)')];
+    const l = (leftItem ? leftItem.getBoundingClientRect().right - nbLeft : 16) + 8;
+    const r = (rightItems.length ? w - (Math.min(...rightItems.map((x) => x.getBoundingClientRect().left)) - nbLeft) : 16) + 8;
+    nb.style.setProperty('--nav-l', l + 'px');
+    nb.style.setProperty('--nav-r', r + 'px');
+    const room = w - l - r;
+    const tw = title.scrollWidth;
+    const free = Math.max(0, room - tw) / 2;
+    const shift = Math.max(-free, Math.min(free, w / 2 - (l + room / 2)));
+    nb.style.setProperty('--nav-shift', Math.round(shift) + 'px');
   }
 
   onScroll() {

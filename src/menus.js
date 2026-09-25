@@ -1,6 +1,6 @@
 // Popover, Menüs, Modale, Bottom-Sheets, Emoji-Auswahl, Bestätigung
 
-import { h, svg, isNarrow, normalizeSearch } from './util.js';
+import { h, svg, isNarrow, isTouchUI, normalizeSearch } from './util.js';
 import { I } from './icons.js';
 
 let openPopovers = [];
@@ -23,6 +23,9 @@ export function popover(anchor, content, opts = {}) {
   if (sheet && opts.title) el.appendChild(h('div', { class: 'sheet-title' }, opts.title));
   el.appendChild(content);
   document.body.append(backdrop, el);
+  // Knopf, der das Menü geöffnet hat, bleibt markiert (statt eines hängenden Hover-Zustands auf Touch)
+  const opener = anchor instanceof Element && anchor.matches('button') && !anchor.hasAttribute('aria-expanded') ? anchor : null;
+  if (opener) opener.setAttribute('aria-expanded', 'true');
 
   const api = {
     el,
@@ -32,6 +35,7 @@ export function popover(anchor, content, opts = {}) {
       api.closed = true;
       backdrop.remove();
       el.remove();
+      if (opener) opener.removeAttribute('aria-expanded');
       openPopovers = openPopovers.filter((p) => p !== api);
       document.removeEventListener('keydown', onKey, true);
       window.removeEventListener('resize', place);
@@ -75,6 +79,10 @@ export function popover(anchor, content, opts = {}) {
     left = Math.max(8, Math.min(left, vw - pw - 8));
     el.style.left = left + 'px';
     el.style.top = top + 'px';
+    // Menü wächst aus dem Knopf heraus
+    const ox = Math.max(0, Math.min(pw, r.left + r.width / 2 - left));
+    const oy = r.top + r.height / 2 < top ? 0 : ph;
+    el.style.transformOrigin = `${ox}px ${oy}px`;
   }
   place();
   window.addEventListener('resize', place);
@@ -145,7 +153,8 @@ export function menu(anchor, items, opts = {}) {
       itemsWrap.appendChild(btn);
     }
     if (!rendered.length) itemsWrap.appendChild(h('div', { class: 'menu-empty' }, opts.emptyText || 'Keine Treffer'));
-    setActive(rendered.length ? 0 : -1);
+    // Auf Touch öffnet ein iOS-Menü ohne markierte Zeile (sonst wirkt z. B. „Löschen“ schon gedrückt)
+    setActive(rendered.length && (opts.search || !isTouchUI()) ? 0 : -1);
   }
   function setActive(i) {
     rendered.forEach((b, j) => b.classList.toggle('active', j === i));
@@ -179,14 +188,14 @@ export function menu(anchor, items, opts = {}) {
 // Modaler Dialog
 export function modal(content, opts = {}) {
   const backdrop = h('div', { class: 'modal-backdrop' });
-  const box = h('div', { class: 'modal' + (opts.class ? ' ' + opts.class : ''), role: 'dialog', 'aria-modal': 'true' });
+  const box = h('div', { class: 'modal' + (opts.class ? ' ' + opts.class : ''), role: opts.role || 'dialog', 'aria-modal': 'true' });
   if (opts.title) {
     box.appendChild(
       h(
         'div',
         { class: 'modal-head' },
         h('div', { class: 'modal-title' }, opts.title),
-        h('button', { class: 'icon-btn', 'aria-label': 'Schließen', onclick: () => api.close() }, svg(I.close))
+        h('button', { class: 'icon-btn modal-close', type: 'button', 'aria-label': 'Schließen', onclick: () => api.close() }, svg(I.close))
       )
     );
   }
@@ -229,10 +238,12 @@ export function confirmDialog({ title, text, okLabel = 'OK', danger = false }) {
       m.close();
       resolve(v);
     };
+    // iOS-Alert: mittig, Titel und Text zentriert, Knöpfe nebeneinander in voller Breite
     const body = h(
       'div',
       { class: 'confirm' },
-      h('p', {}, text),
+      h('h2', { class: 'alert-title' }, title),
+      text ? h('p', {}, text) : null,
       h(
         'div',
         { class: 'confirm-actions' },
@@ -240,7 +251,7 @@ export function confirmDialog({ title, text, okLabel = 'OK', danger = false }) {
         h('button', { class: 'btn ' + (danger ? 'btn-danger' : 'btn-primary'), onclick: () => finish(true) }, okLabel)
       )
     );
-    const m = modal(body, { title, class: 'modal-sm', onClose: () => finish(false) });
+    const m = modal(body, { class: 'modal-sm modal-alert', role: 'alertdialog', onClose: () => finish(false) });
     setTimeout(() => m.el.querySelector('.btn-primary, .btn-danger').focus(), 0);
   });
 }
@@ -265,6 +276,7 @@ export function promptDialog({ title, label, value = '', okLabel = 'OK', placeho
           finish(input.value);
         },
       },
+      h('h2', { class: 'alert-title' }, title),
       label ? h('label', { class: 'field-label' }, label) : null,
       input,
       h(
@@ -274,7 +286,7 @@ export function promptDialog({ title, label, value = '', okLabel = 'OK', placeho
         h('button', { class: 'btn btn-primary', type: 'submit' }, okLabel)
       )
     );
-    const m = modal(body, { title, class: 'modal-sm', onClose: () => finish(null) });
+    const m = modal(body, { class: 'modal-sm modal-alert', onClose: () => finish(null) });
     input.focus();
     input.select();
   });

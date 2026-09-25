@@ -2,7 +2,8 @@
 import { chromium, devices } from '@playwright/test';
 const out = process.argv[2] || 'shots';
 const filter = process.argv[3] || '';
-const b = await chromium.launch();
+// Ohne GPU-Emulation zeichnet Headless-Chromium kein backdrop-filter – Glas sähe ungefiltert aus
+const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--enable-gpu-rasterization', '--ignore-gpu-blocklist'] });
 const base = 'http://localhost:4173';
 const sets = [
   ['iphone', { ...devices['iPhone 15 Pro'] }],

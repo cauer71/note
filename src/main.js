@@ -10,6 +10,8 @@ const config = Object.assign({ target: 'hosted', d1: '', workspace: '', artifact
 const params = new URLSearchParams(location.search);
 
 applyTheme(storageGet('lr:theme', 'system'));
+// iOS Safari setzt :active (Druck-Rückmeldung der Glasknöpfe) nur mit einem touchstart-Listener zuverlässig
+document.addEventListener('touchstart', () => {}, { passive: true });
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => applyTheme(storageGet('lr:theme', 'system')));
 
 // Bibliotheken (KaTeX, highlight.js) nachladen und danach neu zeichnen

@@ -98,7 +98,10 @@ kbd {
   }
 }
 
-/* ---------- Glas ---------- */
+/* ---------- Glas ----------
+   Liquid Glass gehört zur Bedienebene über dem Inhalt (Leisten, Knöpfe, Menüs, Sheets).
+   Inhalt (Listen, Karten, Text) bleibt deckend. Rückfall ohne backdrop-filter und für
+   „Transparenz reduzieren“ / „Kontrast erhöhen“ am Dateiende. */
 .glass,
 .glass-btn,
 .glass-capsule,
@@ -106,10 +109,41 @@ kbd {
 .glass-panel {
   background-color: var(--glass-bg);
   background-image: var(--glass-sheen);
-  -webkit-backdrop-filter: blur(22px) saturate(185%);
-  backdrop-filter: blur(22px) saturate(185%);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
   border: 0.5px solid var(--glass-border);
-  box-shadow: var(--glass-hi), 0 0 0 0.5px var(--glass-edge), var(--glass-shadow);
+  box-shadow: var(--glass-hi), var(--glass-ring), var(--glass-shadow);
+}
+/* Spiegelkante: heller Rand oben links, schwächer unten rechts (nur kleine, nicht scrollende Bedienelemente) */
+.glass-btn,
+.glass-capsule,
+.tab-group,
+.tab-search,
+.pt-group,
+.pt-compose,
+.kb-inner,
+.kb-done-wrap {
+  position: relative;
+}
+.glass-btn::after,
+.glass-capsule::after,
+.tab-group::after,
+.tab-search::after,
+.pt-group::after,
+.pt-compose::after,
+.kb-inner::after,
+.kb-done-wrap::after,
+.sel-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: linear-gradient(160deg, var(--glass-rim), transparent 32%, transparent 68%, color-mix(in srgb, var(--glass-rim) 45%, transparent));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
 }
 .glass-btn {
   width: 44px;
@@ -119,24 +153,47 @@ kbd {
   align-items: center;
   justify-content: center;
   color: var(--label);
-  transition: transform 0.25s var(--spring), background-color 0.2s;
   flex: none;
 }
 .glass-btn .ico {
   width: 21px;
   height: 21px;
 }
+/* Drücken: Glas wächst und hellt auf (iOS 26), Knöpfe in einer Glasfläche geben nach */
+.glass-btn,
+.tab-search,
+.pt-compose,
+.glass-chip {
+  transition: transform 0.3s var(--spring), background-color 0.2s, box-shadow 0.2s;
+}
 .glass-btn:active,
+.tab-search:active,
+.pt-compose:active,
+.glass-chip:active {
+  transform: scale(1.08);
+  background-color: var(--glass-bg-strong);
+  box-shadow: var(--glass-hi), inset 0 0 18px rgba(255, 255, 255, 0.3), var(--glass-ring), var(--glass-shadow);
+}
 .cap-btn:active,
 .tab:active,
 .pt-btn:active,
-.kb-btn:active {
-  transform: scale(0.92);
+.kb-btn:active,
+.sel-btn:active,
+.toast-btn:active {
+  transform: scale(0.94);
+  background: var(--fill-3);
 }
-.glass-btn.glass-tint {
+/* Hervorgehobenes (getöntes) Glas für die Hauptaktion */
+.glass-btn.glass-tint,
+.glass.glass-tint {
+  background-color: var(--tint);
   background-color: color-mix(in srgb, var(--tint) 88%, transparent);
   color: var(--on-tint);
   border-color: rgba(255, 255, 255, 0.35);
+}
+.glass-btn.glass-tint:active,
+.glass.glass-tint:active {
+  background-color: var(--tint);
 }
 .glass-capsule {
   display: inline-flex;
@@ -160,8 +217,17 @@ kbd {
   width: 21px;
   height: 21px;
 }
-.cap-btn:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .cap-btn:hover {
+    background: var(--hover);
+  }
+}
+/* Knopf, dessen Menü gerade offen ist */
+.cap-btn[aria-expanded="true"],
+.sel-btn[aria-expanded="true"],
+.kb-btn[aria-expanded="true"],
+.pt-btn[aria-expanded="true"] {
+  background: var(--fill-3);
 }
 .cap-btn.on-star {
   color: var(--orange);
@@ -427,8 +493,8 @@ input.switch:checked::after {
   transition: background 0.2s, box-shadow 0.2s;
 }
 .segmented button.on {
-  background: var(--bg-elev);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  background: var(--seg-on);
+  box-shadow: var(--seg-on-shadow);
   font-weight: 600;
 }
 .segmented-sm button {
@@ -659,22 +725,24 @@ input.switch:checked::after {
 .navbar > * {
   pointer-events: auto;
 }
+/* Scroll-Kante: Inhalt unter der Leiste verblasst und verschwimmt – Blur nur, wenn wirklich gescrollt */
 .navbar::before {
   content: "";
   position: absolute;
-  inset: 0 0 -24px 0;
+  inset: 0 0 -44px 0;
   pointer-events: none;
-  background: linear-gradient(to bottom, var(--bg-page) 0%, color-mix(in srgb, var(--bg-page) 70%, transparent) 55%, transparent 100%);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 50%, transparent);
-  mask-image: linear-gradient(to bottom, #000 50%, transparent);
+  background: linear-gradient(to bottom, var(--bg-page), transparent);
+  background: linear-gradient(to bottom, var(--bg-page) 0%, color-mix(in srgb, var(--bg-page) 80%, transparent) 50%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
   opacity: 0;
   transition: opacity 0.25s;
   z-index: -1;
 }
 body.scrolled .navbar::before {
   opacity: 1;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 .nav-left,
 .nav-right {
@@ -690,18 +758,25 @@ body.scrolled .navbar::before {
   flex: none;
   justify-content: flex-end;
 }
+/* Titel zwischen den Bedienelementen: mittig, wenn er passt, sonst verschoben und gekürzt (wie UINavigationBar).
+   --nav-l / --nav-r / --nav-shift setzt renderNavbar nach dem Layout. */
 .nav-center {
   position: absolute;
-  left: 50%;
+  left: var(--nav-l, 76px);
+  right: var(--nav-r, 160px);
   top: calc(env(safe-area-inset-top, 0px) + 10px);
   height: 44px;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  max-width: calc(100% - 220px);
+  justify-content: center;
+  min-width: 0;
   pointer-events: none;
 }
 .nav-title {
+  position: relative;
+  left: var(--nav-shift, 0px);
+  min-width: 0;
+  max-width: 100%;
   font-weight: 600;
   font-size: 17px;
   white-space: nowrap;
@@ -742,9 +817,11 @@ body:not(.is-narrow) .nav-center {
   white-space: nowrap;
   font-weight: 500;
 }
-.crumb:hover {
-  background: var(--hover);
-  color: var(--label);
+@media (hover: hover) and (pointer: fine) {
+  .crumb:hover {
+    background: var(--hover);
+    color: var(--label);
+  }
 }
 .crumb.current {
   color: var(--label);
@@ -753,17 +830,28 @@ body:not(.is-narrow) .nav-center {
 .crumb-sep {
   color: var(--label-4);
 }
-.sync-pill {
+/* Speicherstatus als Plakette auf dem „…“-Knopf der Glaskapsel – nur wenn etwas offen ist */
+.nav-right {
+  position: relative;
+}
+.nav-right > .sync-pill {
+  position: absolute;
+  z-index: 1;
+  top: 7px;
+  right: 11px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: transparent;
-  margin-right: 2px;
-  transition: background 0.3s;
+  box-shadow: 0 0 0 1.5px var(--glass-bg-strong);
+  pointer-events: none;
+  opacity: 0;
+  transition: background 0.3s, opacity 0.3s;
 }
-.sync-pill.saved {
-  background: var(--green);
-  opacity: 0.8;
+.nav-right > .sync-pill.pending,
+.nav-right > .sync-pill.syncing,
+.nav-right > .sync-pill.offline {
+  opacity: 1;
 }
 .sync-pill.pending,
 .sync-pill.syncing {
@@ -784,26 +872,43 @@ body:not(.is-narrow) .nav-center {
 .banner {
   position: fixed;
   z-index: 60;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 16px;
+  right: 16px;
+  margin-inline: auto;
+  width: fit-content;
   top: calc(env(safe-area-inset-top, 0px) + 64px);
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: min(640px, calc(100% - 32px));
+  max-width: 640px;
   padding: 8px 8px 8px 14px;
-  border-radius: 18px;
+  border-radius: 22px;
   font-size: 14px;
-  background: var(--glass-bg-strong);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  box-shadow: var(--glass-shadow);
-  border: 0.5px solid var(--glass-border);
+  line-height: 1.35;
+  box-shadow: var(--glass-hi), var(--glass-ring), var(--glass-shadow);
+}
+.banner > span:not(.ico) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+body.is-narrow .banner {
+  top: calc(env(safe-area-inset-top, 0px) + 62px);
 }
 .banner > .ico {
   color: var(--orange);
   width: 20px;
   height: 20px;
+}
+/* Schwebendes Glas (Menüs, Toasts, Hinweise): ein gemeinsames Rezept */
+.popover,
+.slash,
+.toast,
+.banner {
+  background-color: var(--glass-bg-strong);
+  background-image: var(--glass-sheen);
+  -webkit-backdrop-filter: var(--glass-filter-strong);
+  backdrop-filter: var(--glass-filter-strong);
+  border: 0.5px solid var(--glass-border);
 }
 
 /* ---------- Seitenleiste (iPad/Mac): schwebendes Glas ---------- */
@@ -813,24 +918,26 @@ body:not(.is-narrow) .nav-center {
   flex: none;
   z-index: 40;
   padding: calc(env(safe-area-inset-top, 0px) + 10px) 0 10px 10px;
-  transition: margin 0.35s var(--ease), opacity 0.25s;
+  transition: margin 0.35s var(--ease), opacity 0.25s, visibility 0s;
 }
+/* Angedockt liegt nichts hinter der Seitenleiste (Flex-Nachbar von .main) – Blur wäre nur Rechenlast.
+   Deckend mit Glaskante; echtes Glas nur als Overlay (iPad hochkant, body.is-compact). */
 .sidebar .sb {
   height: 100%;
   display: flex;
   flex-direction: column;
   border-radius: 26px;
-  background-color: var(--bg-sidebar);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  backdrop-filter: blur(30px) saturate(180%);
+  background-color: var(--bg-sidebar-solid);
   border: 0.5px solid var(--glass-border);
-  box-shadow: var(--glass-hi), 0 0 0 0.5px var(--glass-edge), 0 12px 40px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--glass-hi), var(--glass-ring), var(--glass-shadow);
   overflow: hidden;
 }
 body.sidebar-closed .sidebar {
   margin-left: calc(-1 * var(--sb-w) - 10px);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition: margin 0.35s var(--ease), opacity 0.25s, visibility 0s 0.35s;
 }
 .sb-head {
   display: flex;
@@ -874,6 +981,23 @@ body.sidebar-closed .sidebar {
 .sb-head-actions .glass-btn {
   width: 38px;
   height: 38px;
+}
+/* Kein Glas auf Glas: Knöpfe in der Seitenleiste sind schlichte Füllungen */
+.sidebar .sb .glass-btn {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--fill-3);
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+.sidebar .sb .glass-btn:not(.glass-tint)::after {
+  display: none;
+}
+.sidebar .sb .glass-btn.glass-tint {
+  background-color: var(--tint);
+  color: var(--on-tint);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 8px color-mix(in srgb, var(--tint) 30%, transparent);
 }
 .sb-head-actions .glass-btn .ico {
   width: 19px;
@@ -1252,14 +1376,22 @@ body.is-narrow .tabbar {
   gap: 10px;
   align-items: flex-end;
   pointer-events: none;
-  transition: transform 0.35s var(--ease), opacity 0.25s;
+  transition: transform 0.35s var(--ease), visibility 0s;
 }
+/* Deckkraft nur an den Glaskindern animieren: ein Vorfahr mit opacity < 1 wird zur Backdrop-Wurzel,
+   das Glas darin verliert während der Blende sonst seinen Blur */
 body.is-narrow .tabbar > * {
   pointer-events: auto;
+  transition: opacity 0.25s, transform 0.3s var(--spring), background-color 0.2s, box-shadow 0.2s;
 }
 body.is-narrow[data-view="page"] .tabbar,
 body.is-narrow.kb-open .tabbar {
   transform: translateY(130%);
+  visibility: hidden;
+  transition: transform 0.35s var(--ease), visibility 0s 0.35s;
+}
+body.is-narrow[data-view="page"] .tabbar > *,
+body.is-narrow.kb-open .tabbar > * {
   opacity: 0;
 }
 .tab-group {
@@ -1364,11 +1496,13 @@ body.is-narrow.kb-open .tabbar {
   position: absolute;
   right: 16px;
   bottom: 14px;
+}
+.cover-actions > * {
   opacity: 0;
   transition: opacity 0.2s;
 }
-.cover:hover .cover-actions,
-body.is-touch .cover-actions {
+.cover:hover .cover-actions > *,
+body.is-touch .cover-actions > * {
   opacity: 1;
 }
 .page-head {
@@ -1647,10 +1781,9 @@ body.is-dragging * {
   padding: 8px 14px;
   border-radius: 14px;
   font-size: 15px;
-  background: var(--glass-bg-strong);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  box-shadow: var(--shadow-pop);
+  /* Gezogene Vorschau = angehobener Inhalt, kein Glas (würde bei jeder Bewegung neu abgetastet) */
+  background: var(--bg-elev);
+  box-shadow: 0 0 0 0.5px var(--sep), var(--shadow-pop);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2296,12 +2429,20 @@ a.mention:hover {
   right: 10px;
   display: flex;
   gap: 6px;
+}
+.image-actions > * {
   opacity: 0;
   transition: opacity 0.2s;
 }
-.image-fig:hover .image-actions,
-body.is-touch .image-actions {
+.image-fig:hover .image-actions > *,
+body.is-touch .image-actions > * {
   opacity: 1;
+}
+/* Auf Touch-Geräten sind die Knöpfe immer da: Glas (Blur) nur am gerade bearbeiteten Bild */
+body.is-touch .image-fig:not(:focus-within) .image-actions .glass-chip {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--glass-fallback);
 }
 .image-caption {
   font-size: 14px;
@@ -2394,9 +2535,16 @@ body.is-touch .tbl-tools {
   opacity: 1;
   pointer-events: auto;
 }
+/* Tabellen-Knöpfe stehen im Inhaltsfluss → deckend, kein Glas */
 .tbl-tools .glass-chip {
   height: 30px;
   font-size: 13px;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--fill-3);
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 /* Inhaltsverzeichnis */
@@ -2722,7 +2870,7 @@ body.is-touch .fc-del {
 }
 
 /* Lernsitzung */
-.modal-study .modal {
+.modal.modal-study {
   width: min(560px, 100%);
 }
 .study {
@@ -3203,8 +3351,10 @@ body.has-fullscreen-drawing .kb-bar {
   width: 16px;
   height: 16px;
 }
-.dbv-tab:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .dbv-tab:hover {
+    background: var(--hover);
+  }
 }
 .dbv-tab.on {
   background: var(--fill-3);
@@ -4248,7 +4398,7 @@ body.is-touch .notes-home .tree-row:not(.active) .tree-act + .tree-act {
 }
 .sheet-backdrop,
 .modal-backdrop {
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--scrim);
   animation: fade 0.25s ease;
 }
 @keyframes fade {
@@ -4264,12 +4414,7 @@ body.is-touch .notes-home .tree-row:not(.active) .tree-act + .tree-act {
   max-height: min(70vh, 560px);
   overflow-y: auto;
   border-radius: 22px;
-  background-color: var(--glass-bg-strong);
-  background-image: var(--glass-sheen);
-  -webkit-backdrop-filter: blur(40px) saturate(190%);
-  backdrop-filter: blur(40px) saturate(190%);
-  border: 0.5px solid var(--glass-border);
-  box-shadow: var(--glass-hi), var(--shadow-pop);
+  box-shadow: var(--glass-hi), var(--glass-ring), var(--shadow-pop);
   animation: pop-in 0.28s var(--spring);
   transform-origin: top left;
   overscroll-behavior: contain;
@@ -4280,17 +4425,33 @@ body.is-touch .notes-home .tree-row:not(.active) .tree-act + .tree-act {
     transform: scale(0.92);
   }
 }
+/* Menü an einem Leistenknopf (iPhone): wächst aus dem Knopf heraus */
+@keyframes pop-grow {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+body.is-narrow .popover:not(.sheet) {
+  min-width: min(250px, calc(100vw - 16px));
+  max-height: calc(100dvh - 140px);
+  animation: pop-grow 0.34s var(--spring);
+}
+/* Bottom-Sheet: rundum eingerückt, Ecken konzentrisch zum Display */
 .popover.sheet {
-  left: 8px !important;
-  right: 8px;
+  left: var(--sheet-inset) !important;
+  right: var(--sheet-inset);
   top: auto !important;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  bottom: var(--sheet-inset);
   max-width: none;
   width: auto;
   max-height: 78vh;
   border-radius: var(--r-sheet);
   animation: sheet-in 0.4s var(--ease);
-  padding-bottom: 8px;
+  padding-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - var(--sheet-inset)));
+}
+body.is-narrow.is-touch {
+  --r-sheet: calc(55px - var(--sheet-inset));
 }
 @keyframes sheet-in {
   from {
@@ -4303,6 +4464,12 @@ body.is-touch .notes-home .tree-row:not(.active) .tree-act + .tree-act {
   border-radius: 3px;
   background: var(--label-4);
   margin: 7px auto 2px;
+}
+/* Griff bleibt beim Scrollen langer Sheets oben stehen */
+.popover.sheet .sheet-grip {
+  position: sticky;
+  top: 7px;
+  z-index: 1;
 }
 .sheet-title {
   text-align: center;
@@ -4347,7 +4514,7 @@ body.is-touch .notes-home .tree-row:not(.active) .tree-act + .tree-act {
   gap: 10px;
   min-height: 38px;
   padding: 6px 10px;
-  border-radius: 12px;
+  border-radius: 16px;
   text-align: left;
   font-size: 15px;
   width: 100%;
@@ -4356,9 +4523,13 @@ body.is-touch .menu-item {
   min-height: 46px;
   font-size: 17px;
 }
-.menu-item.active,
-.menu-item:hover {
+.menu-item.active {
   background: var(--hover);
+}
+@media (hover: hover) and (pointer: fine) {
+  .menu-item:hover {
+    background: var(--hover);
+  }
 }
 .menu-item:active {
   background: var(--fill-3);
@@ -4400,6 +4571,10 @@ body.is-touch .menu-item {
 .menu-hint {
   font-size: 12px;
   color: var(--label-3);
+}
+/* Tastenkürzel gibt es auf iPhone/iPad ohne Tastatur nicht */
+body.is-touch .menu-hint {
+  display: none;
 }
 .menu-check {
   width: 17px !important;
@@ -4518,12 +4693,7 @@ body.is-touch .menu-item {
   overflow-y: auto;
   padding: 6px;
   border-radius: 22px;
-  background-color: var(--glass-bg-strong);
-  background-image: var(--glass-sheen);
-  -webkit-backdrop-filter: blur(40px) saturate(190%);
-  backdrop-filter: blur(40px) saturate(190%);
-  border: 0.5px solid var(--glass-border);
-  box-shadow: var(--glass-hi), var(--shadow-pop);
+  box-shadow: var(--glass-hi), var(--glass-ring), var(--shadow-pop);
   animation: pop-in 0.22s var(--spring);
   overscroll-behavior: contain;
 }
@@ -4533,7 +4703,7 @@ body.is-touch .menu-item {
   gap: 10px;
   width: 100%;
   padding: 6px 8px;
-  border-radius: 14px;
+  border-radius: 16px;
   text-align: left;
 }
 .slash-item.active {
@@ -4654,18 +4824,75 @@ body.is-touch .menu-item {
   justify-content: center;
   padding: 16px;
 }
+/* Dialoge/Sheets: eigene Fläche --bg-modal (im Dunkelmodus #1c1c1e statt Schwarz), Karten darin heben
+   sich über --bg-elev ab */
 .modal {
+  --bg-elev: var(--bg-modal-row);
   width: min(620px, 100%);
   max-height: min(86vh, 900px);
   overflow-y: auto;
   border-radius: 30px;
-  background: var(--bg-grouped);
-  box-shadow: var(--shadow-pop);
+  background: var(--bg-modal);
+  box-shadow: var(--glass-hi), 0 0 0 0.5px var(--glass-border), var(--shadow-pop);
   animation: modal-in 0.35s var(--spring);
   overscroll-behavior: contain;
 }
 .modal-sm {
   width: min(420px, 100%);
+}
+/* Glas-Dialog (Warnungen, Eingaben): schwebt mittig, große Ecken, Knöpfe in voller Breite */
+.modal.modal-alert {
+  background-color: var(--glass-bg-strong);
+  background-image: var(--glass-sheen);
+  -webkit-backdrop-filter: var(--glass-filter-strong);
+  backdrop-filter: var(--glass-filter-strong);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-hi), var(--glass-ring), var(--shadow-pop);
+}
+.modal.modal-alert {
+  width: min(300px, calc(100% - 48px));
+  border-radius: 34px;
+  text-align: center;
+}
+.modal-alert .confirm {
+  padding: 22px 16px 16px;
+  gap: 8px;
+}
+.alert-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.modal-alert .confirm p {
+  font-size: 14px;
+  line-height: 1.4;
+}
+.modal-alert .field-label {
+  margin: 0;
+  text-align: center;
+  color: var(--label-2);
+  font-size: 14px;
+}
+.modal-alert .input {
+  margin-top: 4px;
+  background: var(--fill-3);
+}
+.modal-alert .confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.modal-alert .confirm-actions .btn {
+  height: 48px;
+  min-width: 0;
+  padding: 0 10px;
+  font-size: 17px;
+}
+.modal-alert .confirm-actions .btn:not(.btn-primary):not(.btn-danger):not(.btn-prominent) {
+  background: var(--fill-2);
+  font-weight: 500;
 }
 @keyframes modal-in {
   from {
@@ -4681,16 +4908,47 @@ body.is-touch .menu-item {
   align-items: center;
   justify-content: space-between;
   padding: 14px 14px 10px 22px;
-  background: color-mix(in srgb, var(--bg-grouped) 82%, transparent);
+  background: var(--bg-modal);
+  background: color-mix(in srgb, var(--bg-modal) 82%, transparent);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
+}
+/* Im Glas-Sheet kein zweites Glas */
+.modal-alert .modal-head,
+body.is-narrow .modal:not(.modal-settings, .modal-templates, .modal-search) .modal-head {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 .modal-title {
   font-weight: 700;
   font-size: 20px;
 }
-.modal-head .icon-btn {
-  background: var(--fill-3);
+/* Schließen-Knopf: Glaskreis (Rand + Glanz, ohne eigenen Blur – die Fläche darunter ist schon Glas/deckend) */
+.modal-close {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  color: var(--label);
+  background-color: var(--glass-bg);
+  background-image: var(--glass-sheen);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-hi), var(--glass-ring), 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.3s var(--spring), background-color 0.2s;
+}
+.modal-close .ico {
+  width: 17px;
+  height: 17px;
+}
+.modal-close:active {
+  transform: scale(1.08);
+  background-color: var(--glass-bg-strong);
+}
+@media (hover: hover) and (pointer: fine) {
+  .modal-close:hover {
+    background-color: var(--glass-bg-strong);
+    color: var(--label);
+  }
 }
 .confirm {
   padding: 4px 22px 22px;
@@ -4708,7 +4966,7 @@ body.is-touch .menu-item {
   gap: 8px;
   flex-wrap: wrap;
 }
-.modal-lightbox .modal {
+.modal.modal-lightbox {
   width: min(1000px, 100%);
 }
 .settings {
@@ -4731,7 +4989,7 @@ body.is-touch .menu-item {
 .shortcuts kbd {
   font-size: 13px;
 }
-.modal-templates .modal {
+.modal.modal-templates {
   width: min(760px, 100%);
 }
 .tpl-grid {
@@ -4767,12 +5025,12 @@ body.is-touch .menu-item {
   color: var(--label-2);
 }
 
-/* Suche */
-.modal-search {
+/* Suche: oben verankert (die Klasse sitzt an .modal, der Hintergrund wird per :has() erkannt) */
+.modal-backdrop:has(> .modal-search) {
   align-items: flex-start;
   padding-top: max(10vh, calc(env(safe-area-inset-top, 0px) + 20px));
 }
-.modal-search .modal {
+.modal.modal-search {
   width: min(640px, 100%);
   max-height: 76vh;
   display: flex;
@@ -4847,6 +5105,11 @@ body.has-page-toolbar .toasts {
 body.kb-open .toasts {
   bottom: calc(env(safe-area-inset-bottom, 0px) + 76px + var(--kb-offset, 0px));
 }
+/* Bei offenem Sheet/Dialog nach oben, damit der Toast dessen Titel nicht verdeckt */
+body:has(.modal-backdrop, .sheet-backdrop) .toasts {
+  bottom: auto;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+}
 .toast {
   pointer-events: auto;
   display: flex;
@@ -4856,11 +5119,7 @@ body.kb-open .toasts {
   border-radius: 999px;
   font-size: 15px;
   font-weight: 500;
-  background: var(--glass-bg-strong);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  backdrop-filter: blur(30px) saturate(180%);
-  border: 0.5px solid var(--glass-border);
-  box-shadow: var(--glass-hi), var(--shadow-pop);
+  box-shadow: var(--glass-hi), var(--glass-ring), var(--shadow-pop);
   animation: toast-in 0.4s var(--spring);
   transition: opacity 0.3s, transform 0.3s;
   max-width: 100%;
@@ -4884,8 +5143,10 @@ body.kb-open .toasts {
   padding: 4px 10px;
   border-radius: 999px;
 }
-.toast-btn:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .toast-btn:hover {
+    background: var(--hover);
+  }
 }
 .ai-busy {
   display: inline-flex;
@@ -4918,8 +5179,10 @@ body.kb-open .toasts {
   font-size: 14px;
   font-weight: 500;
 }
-.sel-btn:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .sel-btn:hover {
+    background: var(--hover);
+  }
 }
 .sel-btn.on {
   color: var(--tint);
@@ -4967,9 +5230,17 @@ body.kb-open .toasts {
   bottom: 0;
   display: flex;
   gap: 8px;
-  padding: 6px 8px calc(env(safe-area-inset-bottom, 0px) + 6px);
+  padding: 6px 12px calc(env(safe-area-inset-bottom, 0px) + 6px);
   pointer-events: none;
   transition: transform 0.12s linear;
+}
+/* iPad: wie die Seiten-Leiste nur über der Inhaltsspalte, nicht über der Seitenleiste */
+body:not(.is-narrow) .kb-bar {
+  max-width: 980px;
+  margin-inline: auto;
+}
+body:not(.is-narrow):not(.is-compact):not(.sidebar-closed) .kb-bar {
+  left: calc(var(--sb-w) + 10px);
 }
 body.vkb .kb-bar {
   padding-bottom: 6px;
@@ -5044,6 +5315,9 @@ body.vkb .kb-bar {
   font-weight: 600;
   color: var(--tint-text);
 }
+.glass-tint .kb-done-text {
+  color: var(--on-tint);
+}
 
 /* Seiten-Leiste unten (Touch) */
 .page-toolbar {
@@ -5058,10 +5332,18 @@ body.vkb .kb-bar {
   gap: 10px;
   padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 8px);
   pointer-events: none;
-  animation: toast-in 0.35s var(--spring);
 }
+/* Einblenden an den Glaskindern, nicht am Container (sonst Backdrop-Wurzel → Glas ohne Blur) */
 .page-toolbar > * {
   pointer-events: auto;
+  animation: toast-in 0.35s var(--spring);
+  transition: opacity 0.2s, transform 0.3s var(--spring), background-color 0.2s, box-shadow 0.2s;
+}
+/* iPhone: Leisten ausblenden, solange ein Sheet, Dialog oder Claude offen ist */
+body.is-narrow:has(.sheet-backdrop, .modal-backdrop) :is(.page-toolbar, .tabbar) > *,
+body.is-narrow.ai-open :is(.page-toolbar, .tabbar) > * {
+  opacity: 0;
+  pointer-events: none;
 }
 .pt-group {
   display: flex;
@@ -5105,6 +5387,32 @@ body.vkb .kb-bar {
   color: var(--tint);
   flex: none;
 }
+.pt-compose.glass-tint {
+  color: var(--on-tint);
+}
+/* iPhone: Symbolleiste wie in iOS 26 nur mit Symbolen, füllt die Breite mit 16 px Rand */
+body.is-narrow .pt-group {
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 54px;
+}
+body.is-narrow .pt-btn {
+  flex: 0 1 58px;
+  min-width: 44px;
+  height: 46px;
+  padding: 0 2px;
+}
+body.is-narrow .pt-label {
+  display: none;
+}
+body.is-narrow .pt-btn .ico {
+  width: 24px;
+  height: 24px;
+}
+body.is-narrow .pt-compose {
+  width: 54px;
+  height: 54px;
+}
 .pt-compose .ico {
   width: 24px;
   height: 24px;
@@ -5136,13 +5444,34 @@ body.kb-open .page-toolbar {
 }
 body.is-narrow .ai-panel {
   top: auto;
-  left: 8px;
-  right: 8px;
+  left: var(--sheet-inset);
+  right: var(--sheet-inset);
   width: auto;
   height: min(88vh, calc(100% - env(safe-area-inset-top, 0px) - 20px));
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px + var(--kb-offset, 0px));
+  bottom: calc(var(--sheet-inset) + var(--kb-offset, 0px));
+  padding-bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--sheet-inset) - 10px));
   border-radius: var(--r-sheet);
   transform: translateY(calc(100% + 20px));
+}
+body.is-narrow.kb-open .ai-panel {
+  padding-bottom: 0;
+}
+/* Kein Glas auf Glas: Bedienelemente im Claude-Panel sind schlichte Füllungen */
+.ai-panel .glass,
+.ai-panel .glass-btn {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--fill-3);
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+.ai-panel .glass-btn::after {
+  display: none;
+}
+.ai-panel .ai-composer {
+  background-color: var(--bg-elev);
+  box-shadow: 0 0 0 0.5px var(--sep);
 }
 body.is-narrow .ai-panel.open {
   transform: none;
@@ -5222,6 +5551,17 @@ body.is-narrow .ai-panel.open {
   height: 19px;
   color: var(--tint);
 }
+.ai-quick-btn > span:not(.ico) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+}
+body.is-narrow .ai-quick-btn {
+  padding: 10px 8px;
+  font-size: 12.5px;
+}
 .ai-msgs {
   display: flex;
   flex-direction: column;
@@ -5285,7 +5625,7 @@ body.is-narrow .ai-panel.open {
   align-items: flex-end;
   gap: 6px;
   padding: 6px 6px 6px 14px;
-  border-radius: 24px;
+  border-radius: 20px;
 }
 .ai-input {
   flex: 1;
@@ -5562,23 +5902,57 @@ body.is-narrow .hide-xs {
 body.is-narrow .study-rate {
   grid-template-columns: repeat(2, 1fr);
 }
+/* iPhone: Sheets mit Teilhöhe sind eingerücktes Glas (wie die Popover-Sheets) … */
 body.is-narrow .modal-backdrop {
   align-items: flex-end;
   padding: 0;
 }
 body.is-narrow .modal {
-  width: 100%;
-  max-height: calc(100% - env(safe-area-inset-top, 0px) - 12px);
-  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  width: calc(100% - 2 * var(--sheet-inset));
+  margin-bottom: var(--sheet-inset);
+  max-height: calc(100% - env(safe-area-inset-top, 0px) - 12px - var(--sheet-inset));
+  border-radius: var(--r-sheet);
+  padding-bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--sheet-inset)));
   animation: sheet-in 0.42s var(--ease);
+  background-color: var(--glass-bg-strong);
+  background-image: var(--glass-sheen);
+  -webkit-backdrop-filter: var(--glass-filter-strong);
+  backdrop-filter: var(--glass-filter-strong);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-hi), var(--glass-ring), var(--shadow-pop);
 }
-body.is-narrow .modal-search {
+/* … Sheets in voller Höhe (Einstellungen, Vorlagen, Suche) liegen am Rand und werden deckend */
+body.is-narrow .modal:is(.modal-settings, .modal-templates, .modal-search) {
+  width: 100%;
+  margin-bottom: 0;
+  max-height: calc(100% - env(safe-area-inset-top, 0px) - 12px);
+  border-radius: 34px 34px 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--bg-modal);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 0;
+  box-shadow: var(--glass-hi), 0 0 0 0.5px var(--glass-border), var(--shadow-pop);
+}
+body.is-narrow .modal-backdrop:has(> .modal-search) {
   padding-top: 0;
+  align-items: flex-end;
 }
-body.is-narrow .modal-search .modal {
+body.is-narrow .modal.modal-search {
   height: calc(100% - env(safe-area-inset-top, 0px) - 12px);
   max-height: none;
+}
+/* Warnungen bleiben auch auf dem iPhone mittig (iOS-Alert) */
+body.is-narrow .modal-backdrop:has(> .modal-alert) {
+  align-items: center;
+  padding: 24px;
+}
+body.is-narrow .modal.modal-alert {
+  width: min(300px, 100%);
+  margin: 0;
+  border-radius: 34px;
+  padding-bottom: 0;
+  animation: modal-in 0.35s var(--spring);
 }
 body.is-narrow .quick-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -5668,16 +6042,24 @@ body.is-compact .sidebar {
 body.is-compact.compact-open .sidebar {
   transform: none;
 }
+/* Als Overlay liegt Inhalt dahinter → hier echtes Glas */
 body.is-compact .sidebar .sb {
   background-color: var(--glass-bg-strong);
-  box-shadow: var(--glass-hi), var(--shadow-pop);
+  background-image: var(--glass-sheen);
+  -webkit-backdrop-filter: var(--glass-filter-strong);
+  backdrop-filter: var(--glass-filter-strong);
+  box-shadow: var(--glass-hi), var(--glass-ring), var(--shadow-pop);
+}
+body.is-compact:not(.compact-open) .sidebar {
+  visibility: hidden;
+  transition: transform 0.4s var(--ease), visibility 0s 0.4s;
 }
 body.is-compact.compact-open .sb-scrim {
   display: block;
   position: fixed;
   inset: 0;
   z-index: 89;
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--scrim);
   animation: fade 0.25s ease;
 }
 body:not(.is-narrow) .cover {
@@ -5771,4 +6153,127 @@ body.is-narrow .draw-ai {
   background: var(--fill-2, rgba(120, 120, 128, 0.16));
   font-size: 15px;
   cursor: pointer;
+}
+
+/* ==========================================================================
+   Liquid Glass: Navigationsleiste, Rückfall und Bedienungshilfen
+   ========================================================================== */
+.glass-btn.nav-ai {
+  color: var(--tint);
+}
+/* „Neue Seite“ steht schon in der sichtbaren Seitenleiste */
+body:not(.is-narrow):not(.is-compact):not(.sidebar-closed) .nav-right .nav-compose {
+  display: none;
+}
+/* iPhone-Start: Einstellungen/Neu liegen in der schwebenden Leiste, nicht im scrollenden Inhalt */
+body.is-narrow .notes-home .sb-head-actions {
+  display: none;
+}
+
+/* Ohne backdrop-filter (ältere Browser, Android-WebView ohne GPU): deckende Flächen statt
+   durchscheinendem Text */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass,
+  .glass-btn,
+  .glass-capsule,
+  .glass-chip,
+  .glass-panel,
+  .popover,
+  .slash,
+  .toast,
+  .banner,
+  .sidebar .sb,
+  .modal-head {
+    background-color: var(--glass-fallback);
+    background-image: none;
+  }
+  .glass-btn.glass-tint,
+  .glass.glass-tint,
+  .sidebar .sb .glass-btn.glass-tint {
+    background-color: var(--tint);
+  }
+  .modal.modal-alert,
+  body.is-narrow .modal {
+    background-color: var(--bg-modal);
+    background-image: none;
+  }
+  .navbar::before {
+    background: linear-gradient(to bottom, var(--bg-page) 60%, transparent);
+  }
+}
+
+/* Einstellungen › Bedienungshilfen › Transparenz reduzieren */
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-btn,
+  .glass-capsule,
+  .glass-chip,
+  .glass-panel,
+  .popover,
+  .slash,
+  .toast,
+  .banner,
+  .sidebar .sb,
+  .modal-head,
+  .navbar::before {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background-color: var(--glass-fallback);
+    background-image: none;
+  }
+  .glass-btn.glass-tint,
+  .glass.glass-tint,
+  .sidebar .sb .glass-btn.glass-tint {
+    background-color: var(--tint);
+  }
+  .modal.modal-alert,
+  body.is-narrow .modal {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: var(--bg-modal);
+    background-image: none;
+  }
+  .navbar::before {
+    background: linear-gradient(to bottom, var(--bg-page) 60%, transparent);
+  }
+}
+
+/* Einstellungen › Bedienungshilfen › Kontrast erhöhen */
+@media (prefers-contrast: more) {
+  .glass,
+  .glass-btn,
+  .glass-capsule,
+  .glass-chip,
+  .glass-panel,
+  .popover,
+  .slash,
+  .toast,
+  .banner,
+  .sidebar .sb {
+    background-color: var(--glass-bg-strong);
+    border-color: var(--sep-strong);
+    box-shadow: 0 0 0 1px var(--sep-strong), var(--glass-shadow);
+  }
+  .glass-btn.glass-tint,
+  .glass.glass-tint {
+    background-color: var(--tint-strong);
+  }
+  .glass-btn::after,
+  .glass-capsule::after,
+  .tab-group::after,
+  .tab-search::after,
+  .pt-group::after,
+  .pt-compose::after,
+  .kb-inner::after,
+  .kb-done-wrap::after,
+  .sel-bar::after {
+    display: none;
+  }
+  .modal {
+    box-shadow: 0 0 0 1px var(--sep-strong), var(--shadow-pop);
+  }
+  .tab-label,
+  .pt-label {
+    font-weight: 700;
+  }
 }

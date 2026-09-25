@@ -169,7 +169,7 @@ export class Toolbars {
       )
     );
     const done = this.btn('Fertig', 'Auswahl beenden', () => ed.clearSelection(), 'kb-done kb-done-text');
-    kb.append(h('div', { class: 'kb-inner glass' }, inner), h('div', { class: 'kb-done-wrap glass' }, done));
+    kb.append(h('div', { class: 'kb-inner glass' }, inner), h('div', { class: 'kb-done-wrap glass glass-tint' }, done));
   }
 
   colorMenu(anchor, ed) {
@@ -314,7 +314,7 @@ export class Toolbars {
       );
     }
     items.push(tb(I.sparkle, 'Claude', () => app.ai.openPanel(), 'pt-ai'));
-    bt.append(h('div', { class: 'pt-group glass' }, items), h('button', { class: 'pt-compose glass', type: 'button', 'aria-label': 'Neue Seite', onclick: () => app.createPage({}) }, svg(I.pen)));
+    bt.append(h('div', { class: 'pt-group glass' }, items), h('button', { class: 'pt-compose glass glass-tint', type: 'button', 'aria-label': 'Neue Seite', onclick: () => app.createPage({}) }, svg(I.pen)));
     void isNarrow;
   }
 }
