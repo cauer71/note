@@ -142,13 +142,23 @@ export class App {
         const cached = await kvGet(cacheKey);
         this.store = store;
         this.cacheKey = cacheKey;
-        if (cached && cached.pages && !this.pages.size) {
+        // Unbekannt, wer angemeldet ist (erster Start nach den Arbeitsbereichen): Zwischenspeicher erst
+        // nach der Anmeldung zeigen – außer offline, dann als Notlösung (gespeichert wird erst nach Bestätigung)
+        const verifyFirst = store.kind === 'cloudflare' && store.expectsWorkspace === false;
+        const showCached = () => {
+          if (!cached || !cached.pages || this.pages.size) return;
           this.loadCache(cached);
           this._renderNav();
           this.route();
           if (this.pages.size) window.__splash?.done();
+        };
+        if (!verifyFirst) showCached();
+        try {
+          await this.ensureStoreReady();
+        } catch (err) {
+          if (verifyFirst && this.store === store && err.code !== 'workspace' && err.code !== 'auth') showCached();
+          throw err;
         }
-        await this.ensureStoreReady();
         if (!this.pages.size && store.kind === 'local') this.seed();
         else if (!this.pages.size && !storageGet('lr:seeded:' + this.cacheKey, false)) this.seed();
         storageSet('lr:seeded:' + this.cacheKey, true);

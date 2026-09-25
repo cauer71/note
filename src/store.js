@@ -27,6 +27,7 @@ export class ApiStore {
     this.kind = 'cloudflare';
     this.label = 'Cloudflare D1';
     this.workspace = expected || '';
+    this.expectsWorkspace = !!expected;
     this.cacheKey = expected ? 'api:' + expected : 'api';
     this.ready = false;
   }

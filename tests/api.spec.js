@@ -248,9 +248,20 @@ test('Zwischenspeicher aus der Zeit vor den Arbeitsbereichen: gehört dem alten 
   const p1 = await c1.newPage();
   await p1.goto('/api/health');
   await seedCache(p1);
+  // auch nicht kurz vor der Bestätigung anzeigen
+  await p1.addInitScript(() => {
+    const t = setInterval(() => {
+      if (window.lernraum && window.lernraum.pages.has('cache-only')) window.__sawLegacy = true;
+      if (document.body && document.body.textContent.includes('Offline geändert')) window.__sawLegacy = true;
+    }, 5);
+    setTimeout(() => clearInterval(t), 15000);
+  });
   await p1.goto('/');
   await p1.waitForFunction(() => window.lernraum && window.lernraum.storeReady && window.lernraum.syncState === 'saved' && !window.lernraum.dirty.size, null, { timeout: 20000 });
   expect(await p1.evaluate(() => window.lernraum.pages.has('cache-only'))).toBe(false);
+  expect(await p1.evaluate(() => !!window.__sawLegacy)).toBe(false);
+  // Ungespeichertes des anderen bleibt für dessen Anmeldung liegen, Fremdes ohne Ungespeichertes würde gelöscht
+  expect(await p1.evaluate(() => new Promise((res) => { const r = indexedDB.open('lernraum', 1); r.onsuccess = () => { const g = r.result.transaction('kv').objectStore('kv').get('cache:api'); g.onsuccess = () => res(!!g.result); }; }))).toBe(true);
   await c1.close();
   // 2) Besitzer des alten Bereichs: Offline-Änderung wird übernommen und gespeichert
   const c2 = await browser.newContext();
