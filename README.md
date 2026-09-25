@@ -67,6 +67,16 @@ Bestehende Datenbanken rüstet der Worker (und die Artifact-Version) beim ersten
 
 Cloudflare Access schützt `notes.auer.page` (Einmal-PIN per E-Mail, dazu ein Service-Token für Skripte). Nur `/icons/*` ist öffentlich, damit „Zum Home-Bildschirm“ das App-Symbol laden kann. Weitere Personen lassen sich in Zero Trust → Access → Anwendungen → *Notes* → Richtlinie *Christian* ergänzen.
 
+## Versionen
+
+Die App zeigt ihre Version immer an (Seitenleiste bzw. Ende der Notizen-Übersicht, Einstellungen): `Version 1.2.0 · 25.09.2026 16:27` – Nummer aus `package.json`, dazu der Build-Zeitpunkt. **Vor jeder Veröffentlichung die Version in `package.json` erhöhen** (Fehlerbehebung: letzte Stelle, neue Funktionen: mittlere Stelle). `npm run deploy` gibt sie auch an den Worker weiter (`/api/health` → `version`).
+
+| Version | Änderungen |
+| --- | --- |
+| 1.2.0 | Eigene Arbeitsbereiche pro Person, Anleitung beim ersten Start und unter „Hilfe“, Versionsanzeige |
+| 1.1.0 | Neuer Name „Notes“, App-Symbol, Startanimation, Web-App für iOS und Android |
+| 1.0.0 | Erste Version (Lernraum) |
+
 ## Synchronisierung
 
 - Jede Seite ist eine Zeile in D1. `rev` ist eine fortlaufende Revision, die D1 selbst vergibt – Geräteuhren spielen für die Reihenfolge keine Rolle.
