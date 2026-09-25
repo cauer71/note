@@ -5397,8 +5397,9 @@ body.is-narrow .pt-group {
   height: 54px;
 }
 body.is-narrow .pt-btn {
-  flex: 0 1 58px;
-  min-width: 44px;
+  flex: 0 1 auto;
+  width: 58px;
+  min-width: 40px;
   height: 46px;
   padding: 0 2px;
 }
@@ -5559,8 +5560,8 @@ body.is-narrow .ai-panel.open {
   hyphens: auto;
 }
 body.is-narrow .ai-quick-btn {
-  padding: 10px 8px;
-  font-size: 12.5px;
+  padding: 10px 7px;
+  font-size: 12px;
 }
 .ai-msgs {
   display: flex;
