@@ -353,9 +353,11 @@ export class AI {
     const prompt =
       `${action.prompt}\nAntworte nur mit dem Ergebnis${inline ? ' als Fließtext (kein Markdown außer **fett**, *kursiv* und $Formeln$)' : ' in Markdown'}, ohne Einleitung oder Kommentar.\n\n` +
       `Kontext – Seite „${pageTitle(ed.page)}“ (nur zur Orientierung):\n${this.pageContext(ed.page, 6000)}\n\nTEXT:\n${text}`;
+    const quick = ['fix', 'shorter', 'en', 'it', 'de'].includes(action.id);
     this.ask(prompt, {
       signal: ctl.signal,
       cache: false,
+      modelTier: quick ? 'quick' : 'default',
       onText: ({ text: t }) => {
         result = t;
         out.innerHTML = mdToHtmlPreview(t);

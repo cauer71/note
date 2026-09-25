@@ -1338,17 +1338,16 @@ body.is-narrow.kb-open .tabbar {
   font-family: var(--font-mono);
   font-size: 15px;
 }
+.content {
+  --content-top: calc(env(safe-area-inset-top, 0px) + 72px);
+}
 .cover {
-  height: 220px;
-  margin: calc(-72px - env(safe-area-inset-top, 0px)) -48px 0;
+  height: 240px;
+  margin-top: calc(-1 * var(--content-top));
+  margin-bottom: 0;
   background-size: cover;
   background-position: center;
   position: relative;
-}
-.page.full-width .cover,
-.page .cover {
-  margin-left: calc(-50vw + 50%);
-  margin-right: calc(-50vw + 50%);
 }
 .cover-actions {
   position: absolute;
@@ -5468,9 +5467,11 @@ body.is-narrow .content {
 body.is-narrow .page {
   padding: 0 20px;
 }
+body.is-narrow .content {
+  --content-top: calc(env(safe-area-inset-top, 0px) + 66px);
+}
 body.is-narrow .cover {
-  height: 170px;
-  margin-top: calc(-66px - env(safe-area-inset-top, 0px));
+  height: 180px;
 }
 body.is-narrow .page-title {
   font-size: 32px;
@@ -5587,7 +5588,8 @@ body.is-narrow .blk-gutter {
 }
 @media (min-width: 761px) {
   .content {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 76px);
+    --content-top: calc(env(safe-area-inset-top, 0px) + 76px);
+    padding-top: var(--content-top);
   }
   body:not(.sidebar-closed) .navbar {
     padding-left: 16px;
@@ -5657,9 +5659,9 @@ body.is-compact.compact-open .sb-scrim {
   background: rgba(0, 0, 0, 0.18);
   animation: fade 0.25s ease;
 }
-body:not(.is-narrow):not(.is-compact):not(.sidebar-closed) .page .cover {
-  margin-left: -48px;
-  margin-right: -48px;
+body:not(.is-narrow) .cover {
+  margin-left: 10px;
+  margin-right: 10px;
   border-radius: 0 0 28px 28px;
 }
 body.ai-open:not(.is-narrow) .page-toolbar {

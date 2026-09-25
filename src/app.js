@@ -859,7 +859,8 @@ export class App {
       cover.appendChild(
         h('div', { class: 'cover-actions' }, h('button', { class: 'glass-chip', type: 'button', onclick: (e) => this.coverMenu(e.currentTarget, p) }, 'Titelbild ändern'))
       );
-      wrap.appendChild(cover);
+      // über die ganze Inhaltsbreite (außerhalb der Textspalte)
+      this.content.appendChild(cover);
     }
     const isNew = !p.title && !(p.blocks || []).some((b) => b.type !== 'p' || (b.text || '').trim());
     const head = h('div', { class: 'page-head' + (p.cover ? ' has-cover' : '') + (p.icon ? ' has-icon' : '') + (isNew ? ' is-new' : '') });
