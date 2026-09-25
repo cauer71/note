@@ -5,6 +5,7 @@ import { ApiStore, McpD1Store, LocalStore } from './store.js';
 import { storageGet } from './util.js';
 import { renderMath, highlight } from './blocks.js';
 import { onInstallChange } from './install.js';
+import { maybeAutoTour } from './tour.js';
 
 const config = Object.assign({ target: 'hosted', d1: '', workspace: '', artifactUrl: '', hostedUrl: '' }, window.__LERNRAUM__ || {});
 const params = new URLSearchParams(location.search);
@@ -74,7 +75,8 @@ if (params.has('local') || config.localOnly) {
 if (window.__splash) window.__splash.onend = () => applyTheme(storageGet('lr:theme', 'system'));
 // Android meldet die Installierbarkeit erst nach dem Laden → Heute-Ansicht mit Installationskarte neu zeichnen
 onInstallChange(() => app.view === 'today' && app.route(true));
-app.start(stores).finally(() => window.__splash?.done());
+// Danach beim ersten Start einmal die Anleitung zeigen (siehe src/tour.js)
+app.start(stores).finally(() => window.__splash?.done()).then(() => maybeAutoTour(app));
 
 // Offline-Start für die Home-Bildschirm-App (nur gehostete Version)
 if (config.target === 'hosted' && !inClaude && 'serviceWorker' in navigator && location.protocol === 'https:') {

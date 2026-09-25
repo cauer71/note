@@ -18,6 +18,7 @@ import { renderToday, renderLearn, renderTrash, openSearch, openSettings, openTe
 import { collectAllCards, isDue } from './learn.js';
 import { htmlToText } from './inline.js';
 import { APP_NAME, SPLASH_BG, iconSvg, versionText } from './brand.js';
+import { openTour } from './tour.js';
 
 const LOGO = iconSvg({ id: 'logo', rounded: true });
 // Gemeinsamer Zwischenspeicher aus der Zeit vor den Arbeitsbereichen (nur noch zum Übernehmen)
@@ -1039,8 +1040,8 @@ export class App {
 
   route(force) {
     let hash = decodeURIComponent(location.hash.slice(1));
-    // Kurzbefehle vom App-Symbol (Android): #neu legt eine Seite an, #suche öffnet die Suche
-    if (hash === 'neu' || hash === 'suche') {
+    // Kurzbefehle vom App-Symbol (Android): #neu legt eine Seite an, #suche öffnet die Suche; #hilfe die Anleitung
+    if (hash === 'neu' || hash === 'suche' || hash === 'hilfe') {
       if (!this.store || !this.pages.size) return;
       let target = '';
       if (hash === 'neu') {
@@ -1048,8 +1049,11 @@ export class App {
         this.pendingFocusTitle = true;
         target = p.id;
       }
+      // Anleitung über der aktuellen Ansicht öffnen (Zurück öffnet sie nicht erneut)
+      if (hash === 'hilfe') target = this.view === 'page' && this.currentId ? this.currentId : { today: 'heute', learn: 'lernen', trash: 'papierkorb', notes: 'notizen' }[this.view] || '';
       history.replaceState(null, '', location.pathname + location.search + (target ? '#' + target : ''));
       if (hash === 'suche') setTimeout(() => openSearch(this), 0);
+      if (hash === 'hilfe') setTimeout(() => openTour(this), 0);
       hash = target;
     }
     const views = { heute: 'today', lernen: 'learn', papierkorb: 'trash', notizen: 'notes' };
@@ -1548,6 +1552,7 @@ export class App {
       h(
         'div',
         { class: 'sb-head-actions' },
+        h('button', { class: 'glass-btn', type: 'button', 'aria-label': 'Hilfe', title: 'Anleitung (?)', onclick: () => (this.setCompactOpen(false), openTour(this)) }, svg(I.help)),
         h('button', { class: 'glass-btn', type: 'button', 'aria-label': 'Einstellungen', onclick: () => openSettings(this) }, svg(I.settings)),
         h('button', { class: 'glass-btn glass-tint', type: 'button', 'aria-label': 'Neue Seite', onclick: () => this.createPage({}) }, svg(I.pen))
       )
@@ -1604,7 +1609,18 @@ export class App {
     tree.appendChild(h('button', { class: 'ios-row tree-add', type: 'button', onclick: () => this.createPage({}) }, h('span', { class: 'ios-row-ico' }, svg(I.plus)), h('span', { class: 'ios-row-title' }, 'Neue Seite')));
     scroll.appendChild(tree);
     const trashed = [...this.pages.values()].filter((p) => p.trashed).length;
-    scroll.appendChild(h('div', { class: 'ios-list sb-foot' }, this.navRow('Papierkorb', I.trash, 'trash', () => this.goView('papierkorb'), 'c-gray', trashed || null), this.navRow('Einstellungen', I.settings, 'settings', () => openSettings(this), 'c-gray')));
+    scroll.appendChild(
+      h(
+        'div',
+        { class: 'ios-list sb-foot' },
+        this.navRow('Papierkorb', I.trash, 'trash', () => this.goView('papierkorb'), 'c-gray', trashed || null),
+        this.navRow('Hilfe', I.help, 'help', () => {
+          this.setCompactOpen(false);
+          openTour(this);
+        }, 'c-gray'),
+        this.navRow('Einstellungen', I.settings, 'settings', () => openSettings(this), 'c-gray')
+      )
+    );
     const sync = h('div', { class: 'sidebar-sync' });
     this.paintSync(sync, true);
     scroll.appendChild(sync);
@@ -1785,6 +1801,14 @@ export class App {
     }
     if (e.key === 'Escape' && this.ai.panel && !document.querySelector('.popover, .modal-backdrop')) {
       this.ai.closePanel();
+      return;
+    }
+    // „?“ öffnet die Anleitung – nicht beim Tippen in Feldern oder im Editor
+    if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey && !document.querySelector('.popover, .modal-backdrop') && !(this.editor && this.editor.selected.size)) {
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
+      e.preventDefault();
+      openTour(this);
       return;
     }
     if (this.editor && this.editor.selected.size && !document.querySelector('.popover, .modal-backdrop')) {

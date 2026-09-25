@@ -47,7 +47,7 @@ function katexCss() {
 }
 
 async function cssBundle() {
-  const css = themeCss() + '\n' + readFileSync(join(root, 'src/styles.css'), 'utf8');
+  const css = themeCss() + '\n' + readFileSync(join(root, 'src/styles.css'), 'utf8') + '\n' + readFileSync(join(root, 'src/tour.css'), 'utf8');
   const out = await transform(css, { loader: 'css', minify: true, target: ['safari15', 'chrome100', 'firefox100'] });
   return out.code + '\n' + katexCss();
 }

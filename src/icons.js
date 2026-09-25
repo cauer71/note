@@ -33,6 +33,8 @@ export const I = {
   template: s('<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 9h17M9 9v11.5"/>'),
   cards: s('<rect x="6.5" y="3.5" width="12" height="15" rx="2" transform="rotate(8 12.5 11)"/><rect x="4" y="5.5" width="12" height="15" rx="2"/>'),
   quiz: s('<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6M12 17h.01"/>'),
+  // Sprechblase mit Fragezeichen (Hilfe) – bewusst anders als das Quiz-Symbol
+  help: s('<path d="M4.5 18.5V6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8.5z"/><path d="M10 9.2a2 2 0 1 1 2.9 1.8c-.6.3-.9.8-.9 1.4M12 14.6h.01"/>'),
   pen: s('<path d="M4 20l1.2-4.2L16.5 4.5a2.1 2.1 0 0 1 3 3L8.2 18.8z"/><path d="M14.5 6.5l3 3"/>'),
   highlighter: s('<path d="m9 15 6.5-10.5 4 2.5L13 17.5z"/><path d="M9 15l-2 4h5l1-1.5"/><path d="M4 21h16"/>'),
   eraser: s('<path d="M8 20h12M5.6 16.6l8.9-8.9a2 2 0 0 1 2.8 0l2 2a2 2 0 0 1 0 2.8L13 18.8a2 2 0 0 1-1.4.6H9.3a2 2 0 0 1-1.4-.6l-2.3-2.3a1.3 1.3 0 0 1 0-1.9z"/><path d="m10 12 5 5"/>'),

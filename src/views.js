@@ -12,6 +12,7 @@ import { sanitizeBlocks } from './editor.js';
 import { htmlToText } from './inline.js';
 import { installSection, installCard } from './install.js';
 import { APP_NAME, versionText } from './brand.js';
+import { openTour } from './tour.js';
 
 function largeTitle(title, sub) {
   return h('div', { class: 'large-head' }, h('h1', { class: 'large-title' }, title), sub ? h('div', { class: 'large-sub' }, sub) : null);
@@ -424,6 +425,8 @@ export function openSettings(app) {
     app._renderNav();
   });
   const store = app.store;
+  const start = app.pages.get('seed-start');
+  const hasStart = !!start && !app.isTrashedDeep(start);
   const body = h(
     'div',
     { class: 'settings' },
@@ -481,6 +484,13 @@ export function openSettings(app) {
       app.ai.available ? h('div', { class: 'ios-row' }, h('span', { class: 'ios-row-title' }, 'Bilder & Handschrift'), h('span', { class: 'ios-row-value' }, app.ai.canImages ? 'Ja' : 'Nein')) : null,
       !app.ai.available && app.config.artifactUrl ? h('a', { class: 'ios-row ios-row-action', href: app.config.artifactUrl, target: '_blank', rel: 'noopener' }, h('span', { class: 'ios-row-title tint' }, APP_NAME + ' in Claude öffnen')) : null
     ),
+    h('div', { class: 'section-label' }, 'Hilfe'),
+    h(
+      'div',
+      { class: 'ios-list' },
+      h('button', { class: 'ios-row ios-row-action', type: 'button', onclick: () => { m.close(); openTour(app); } }, h('span', { class: 'ios-row-title tint' }, 'Anleitung ansehen')),
+      hasStart ? h('button', { class: 'ios-row ios-row-action', type: 'button', onclick: () => { m.close(); app.navigate('seed-start'); } }, h('span', { class: 'ios-row-title tint' }, 'Willkommensseite öffnen')) : null
+    ),
     h('div', { class: 'section-label' }, 'Tastenkürzel'),
     h(
       'div',
@@ -491,6 +501,7 @@ export function openSettings(app) {
         ['Seitenleiste', '⌘\\'],
         ['Hell/Dunkel', '⇧⌘L'],
         ['Befehle', '/'],
+        ['Anleitung', '?'],
         ['Seite verlinken', '@'],
         ['Einrücken', 'Tab'],
         ['Block verschieben', '⇧⌘↑ / ↓'],
